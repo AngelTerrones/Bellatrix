@@ -2,6 +2,8 @@
 
 Bellatrix is a CPU core that implements the [RISC-V RV32I Instruction Set][1].
 
+It is based on the [Minerva][11] CPU.
+
 Bellatrix is free and open hardware licensed under the permissive two-clause BSD license.
 See LICENSE file for full copyright and license information.
 
@@ -25,7 +27,6 @@ See LICENSE file for full copyright and license information.
     - [Run the compliance tests](#run-the-compliance-tests)
     - [Simulate execution of a single ELF file](#simulate-execution-of-a-single-elf-file)
         - [Parameters of the C++ model](#parameters-of-the-c-model)
-- [License](#license)
 
 <!-- /TOC -->
 
@@ -189,11 +190,6 @@ To execute a single `.elf` file:
 - `signature (optional)`: Write memory dump to a file. For verification purposes.
 - `trace (optional)`: Enable VCD dumps. Writes the output file to `build/trace_core.vcd`.
 
-## License
-Copyright (c) 2019 Angel Terrones (<angelterrones@gmail.com>).
-
-Rreleased under the permissive two-clause BSD license.
-
 [1]: https://riscv.org/specifications/
 [2]: https://riscv.org/specifications/privileged-isa/
 [3]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
@@ -204,3 +200,4 @@ Rreleased under the permissive two-clause BSD license.
 [8]: https://www.sifive.com/boards
 [9]: https://static.dev.sifive.com/dev-tools/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz
 [10]: https://github.com/YosysHQ/yosys
+[11]: https://github.com/lambdaconcept/minerva
