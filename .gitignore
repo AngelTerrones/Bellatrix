@@ -1,0 +1,40 @@
+# GTKWave
+*.vcd*
+*.gtkw
+
+# Object files
+*.o
+*.riscv*
+*.elf
+*.bin
+
+# dump files
+*.hex
+*.dump
+
+# python files (byte-compiled)
+__pycache__/
+*.py[cod]
+.cache/
+
+# python virtualenv
+.venv
+
+# build folders
+build/
+output/
+
+# extra
+*lock*
+*.txt
+*.ods
+
+# vscode
+.vscode
+
+# ignore compliance
+tests/riscv-compliance
+
+# Vivado
+.Xil
+*.log
