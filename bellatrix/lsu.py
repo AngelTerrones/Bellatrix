@@ -220,11 +220,17 @@ class CachedLSU(LSUInterface, Elaboratable):
         # drive the arbiter port
         with m.If(wbuffer_port.cyc):
             with m.If(wbuffer_port.ack | wbuffer_port.err):
-                m.d.sync += [
-                    wbuffer_port.cyc.eq(0),
-                    wbuffer_port.stb.eq(0)
-                ]
                 m.d.comb += wbuffer.r_en.eq(1)
+                m.d.sync += wbuffer_port.stb.eq(0)
+                with m.If(wbuffer.level == 1):  # Buffer is empty
+                    m.d.sync += wbuffer_port.cyc.eq(0)
+            with m.Elif(~wbuffer_port.stb):
+                m.d.sync += [
+                    wbuffer_port.stb.eq(1),
+                    wbuffer_port.addr.eq(wbuffer_dout.addr),
+                    wbuffer_port.dat_w.eq(wbuffer_dout.data),
+                    wbuffer_port.sel.eq(wbuffer_dout.sel)
+                ]
         with m.Elif(wbuffer.r_rdy):
             m.d.sync += [
                 wbuffer_port.cyc.eq(1),
