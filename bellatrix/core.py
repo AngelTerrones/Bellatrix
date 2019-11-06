@@ -328,7 +328,7 @@ class Bellatrix(Elaboratable):
         ]
         if (self.configuration.getOption('dcache', 'enable')):
             cpu.d.comb += lsu.x_fence_i.eq(x.valid & x.endpoint_a.fence_i)
-
+            x.add_stall_source(x.valid & x.endpoint_a.fence_i & m.valid & m.endpoint_a.store)
         if (self.configuration.getOption('isa', 'enable_rv32m')):
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
         if (self.configuration.getOption('dcache', 'enable')):
