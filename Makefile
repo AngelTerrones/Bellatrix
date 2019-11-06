@@ -76,7 +76,7 @@ core-sim-compliance-rv32im: build-core
 	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32im RISCV_ISA=rv32im
 
 core-sim-compliance-rv32mi: build-core
-	-@$(SUBuildthe verilator testbenchBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32mi RISCV_ISA=rv32mi
+	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32mi RISCV_ISA=rv32mi
 
 core-sim-compliance-rv32ui: build-core
 	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32ui
