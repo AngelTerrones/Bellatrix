@@ -3,6 +3,17 @@
 # ------------------------------------------------------------------------------
 SHELL=bash
 
+Color_Off='\033[0m'
+# Bold colors
+BBlack='\033[1;30m'
+BRed='\033[1;31m'
+BGreen='\033[1;32m'
+BYellow='\033[1;33m'
+BBlue='\033[1;34m'
+BPurple='\033[1;35m'
+BCyan='\033[1;36m'
+BWhite='\033[1;37m'
+
 # ------------------------------------------------------------------------------
 SUBMAKE	 = $(MAKE) --no-print-directory
 ROOT	 = $(shell pwd)
@@ -12,6 +23,7 @@ VCOREDIR = $(ROOT)/testbench/verilator
 CORE_FILES=$(shell find bellatrix -name "*.py")
 BUILD_FILE=$(ROOT)/scripts/build.py
 
+CFG_FILES=$(shell find configurations -name "*.ini")
 CFG_BASENAME=$(basename $(notdir $(CONFIG)))
 GEN_FOLDER=$(BFOLDER)/$(CFG_BASENAME)
 
@@ -35,7 +47,11 @@ help:
 	@echo -e "--------------------------------------------------------------------------------"
 	@echo -e "Please, choose one target:"
 	@echo -e "- install-compliance:         Clone the riscv-compliance test."
-	@echo -e "- build-model:                Build C++ core model."
+	@echo -e "- setup_environment:          Create a python3 virtualenv, and installs nMigen."
+	@echo -e "- generate-core:              Generate the verilog output file."
+	@echo -e "- generate-core-all:          Generate ALL the verilog output file."
+	@echo -e "- build-core:                 Build the verilator testbench."
+	@echo -e "- build-core-all:             Build ALL verilator testbenches."
 	@echo -e "- core-sim-compliance:        Execute the compliance tests."
 	@echo -e "- core-sim-compliance-rv32i:  Execute the RV32I compliance tests."
 	@echo -e "- core-sim-compliance-rv32im: Execute the RV32IM compliance tests."
@@ -77,15 +93,21 @@ setup-environment:
 # ------------------------------------------------------------------------------
 generate-core: $(GEN_FOLDER)/bellatrix_core.v
 
+generate-core-all:
+	+@$(foreach cfg, $(CFG_FILES), make generate-core CONFIG=$(cfg);)
+
 build-core: generate-core
 	@mkdir -p $(BFOLDER)
 	+@$(SUBMAKE) -C $(VCOREDIR)
+
+build-core-all:
+	+@$(foreach cfg, $(CFG_FILES), make build-core CONFIG=$(cfg);)
 # ------------------------------------------------------------------------------
 # HIDDEN
 # ------------------------------------------------------------------------------
 $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(BUILD_FILE) $(CONFIG)
 	@mkdir -p $(GEN_FOLDER)
-	@echo "Generate core"
+	@echo -e "Generate core:" $(BGreen)$(shell basename $(CONFIG))$(Color_Off)
 	@PYTHONPATH=$(ROOT) python scripts/build.py --config-file $(CONFIG) generate $(GEN_FOLDER)/bellatrix_core.v
 	@sed -i '/verilog_initial_trigger/d' $(GEN_FOLDER)/bellatrix_core.v
 

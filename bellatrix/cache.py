@@ -1,4 +1,6 @@
 from nmigen import Mux
+from nmigen import Cat
+from nmigen import Repl
 from nmigen import Const
 from nmigen import Array
 from nmigen import Module
@@ -132,9 +134,6 @@ class Cache(Elaboratable):
             data_rp = data_m.read_port()
             data_wp = data_m.write_port(granularity=32)
             m.submodules += data_rp, data_wp
-            if self.enable_write:
-                data_cpu_wp = data_m.write_port(granularity=8)
-                m.submodules += data_cpu_wp
 
             # handle valid
             with m.If(self.s1_flush & self.s1_valid):  # flush
@@ -154,22 +153,48 @@ class Cache(Elaboratable):
                 tag_wp.en.eq(way.sel_lru & self.bus_ack & self.bus_last),
 
                 data_rp.addr.eq(Mux(self.s1_stall, self.s2_address.line, self.s1_address.line)),
-                data_wp.addr.eq(self.bus_addr.line),
-                data_wp.data.eq(self.bus_data << (32 * self.bus_addr.offset)),
-                data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
 
                 way.data.eq(data_rp.data),
                 way.tag.eq(tag_rp.data),
                 way.valid.eq(valid.bit_select(self.s2_address.line, 1))
             ]
 
-            # update cache
+            # update cache: CPU or Refill
             if self.enable_write:
+                update_addr = Signal(len(data_wp.addr))
+                update_data = Signal(len(data_wp.data))
+                update_we   = Signal(len(data_wp.en))
+                aux_wdata   = Signal(32)
+
+                with m.If(self.bus_valid):
+                    m.d.comb += [
+                        update_addr.eq(self.bus_addr.line),
+                        update_data.eq(Repl(self.bus_data, self.nwords)),
+                        update_we.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
+                    ]
+                with m.Else():
+                    m.d.comb += [
+                        update_addr.eq(self.s2_address.line),
+                        update_data.eq(Repl(aux_wdata, self.nwords)),
+                        update_we.bit_select(self.s2_address.offset, 1).eq(way.sel_we & ~self.s2_miss)
+                    ]
                 m.d.comb += [
-                    data_cpu_wp.addr.eq(self.s2_address.line),
-                    data_cpu_wp.data.eq(self.s2_wdata << (32 * self.s2_address.offset)),
-                    # data_cpu_wp.en.bit_select(self.s2_address.offset, 1).eq(way.sel_we)
-                    data_cpu_wp.en.eq(Mux(way.sel_we & ~self.s2_miss, self.s2_sel << (4 * self.s2_address.offset), 0))
+                    aux_wdata.eq(Cat(
+                        Mux(self.s2_sel[0], self.s2_wdata.word_select(0, 8), self.s2_rdata.word_select(0, 8)),
+                        Mux(self.s2_sel[1], self.s2_wdata.word_select(1, 8), self.s2_rdata.word_select(1, 8)),
+                        Mux(self.s2_sel[2], self.s2_wdata.word_select(2, 8), self.s2_rdata.word_select(2, 8)),
+                        Mux(self.s2_sel[3], self.s2_wdata.word_select(3, 8), self.s2_rdata.word_select(3, 8))
+                    )),
+                    #
+                    data_wp.addr.eq(update_addr),
+                    data_wp.data.eq(update_data),
+                    data_wp.en.eq(update_we),
+                ]
+            else:
+                m.d.comb += [
+                    data_wp.addr.eq(self.bus_addr.line),
+                    data_wp.data.eq(Repl(self.bus_data, self.nwords)),
+                    data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                 ]
 
         return m

@@ -6,7 +6,7 @@ from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
-from nmigen.lib.fifo import SyncFIFO
+from nmigen.lib.fifo import SyncFIFOBuffered
 from .isa import Funct3
 from .wishbone import Arbiter
 from .wishbone import CycleType
@@ -182,7 +182,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                                                start_addr=self.start_addr, end_addr=self.end_addr,
                                                enable_write=True)
         arbiter = m.submodules.arbiter = Arbiter()
-        wbuffer = m.submodules.wbuffer = SyncFIFO(width=len(wbuffer_din), depth=self.nwords)
+        wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
 
         wbuffer_port = arbiter.add_port(priority=0)
         cache_port   = arbiter.add_port(priority=1)
@@ -220,22 +220,31 @@ class CachedLSU(LSUInterface, Elaboratable):
         # drive the arbiter port
         with m.If(wbuffer_port.cyc):
             with m.If(wbuffer_port.ack | wbuffer_port.err):
-                m.d.sync += [
-                    wbuffer_port.cyc.eq(0),
-                    wbuffer_port.stb.eq(0)
-                ]
                 m.d.comb += wbuffer.r_en.eq(1)
+                m.d.sync += wbuffer_port.stb.eq(0)
+                with m.If(wbuffer.level == 1):  # Buffer is empty
+                    m.d.sync += [
+                        wbuffer_port.cyc.eq(0),
+                        wbuffer_port.we.eq(0)
+                    ]
+            with m.Elif(~wbuffer_port.stb):
+                m.d.sync += [
+                    wbuffer_port.stb.eq(1),
+                    wbuffer_port.addr.eq(wbuffer_dout.addr),
+                    wbuffer_port.dat_w.eq(wbuffer_dout.data),
+                    wbuffer_port.sel.eq(wbuffer_dout.sel)
+                ]
         with m.Elif(wbuffer.r_rdy):
             m.d.sync += [
                 wbuffer_port.cyc.eq(1),
                 wbuffer_port.stb.eq(1),
+                wbuffer_port.we.eq(1),
                 wbuffer_port.addr.eq(wbuffer_dout.addr),
                 wbuffer_port.dat_w.eq(wbuffer_dout.data),
                 wbuffer_port.sel.eq(wbuffer_dout.sel)
             ]
             m.d.comb += wbuffer.r_en.eq(0)
         m.d.comb += [
-            wbuffer_port.we.eq(1),
             wbuffer_port.cti.eq(CycleType.CLASSIC),
             wbuffer_port.bte.eq(0)
         ]

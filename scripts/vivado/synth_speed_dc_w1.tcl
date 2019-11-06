@@ -1,5 +1,5 @@
 read_verilog scripts/vivado/top.v
-read_verilog build/bellatrix_ic_w2/bellatrix_core.v
+read_verilog build/bellatrix_dc_w1/bellatrix_core.v
 read_xdc scripts/vivado/synth_speed.xdc
 
 synth_design -part xc7a100tftg256-2 -top top
