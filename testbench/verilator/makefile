@@ -63,7 +63,7 @@ $(VOBJ)/Vtop__ALL.a: $(VSOURCES)
 # C++
 $(VOBJ)/%.o: cpp/%.cpp
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
-	@$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" $(INCS) -c $< -o $@
+	@$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
 
 $(VOBJS): $(VOBJ)/%.o: $(VINCD)/%.cpp
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"

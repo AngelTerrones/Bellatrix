@@ -39,9 +39,10 @@ export RISCV_PREFIX ?= $(RVGCC_PATH)/riscv64-unknown-elf-
 export TARGET_FOLDER = $(VCOREDIR)
 export RTLDIR = $(GEN_FOLDER)
 export VOUT = $(GEN_FOLDER)
+export BCONFIG = $(CONFIG)
 
 # ------------------------------------------------------------------------------
-# targets
+# targetsEXE
 # ------------------------------------------------------------------------------
 help:
 	@echo -e "--------------------------------------------------------------------------------"

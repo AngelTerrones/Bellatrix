@@ -22,6 +22,7 @@
 
 void printHelp() {
         printf("RISC-V CPU Verilator model.\n");
+        printf("Using configuration file: " BCONFIG"\n");
         printf("Usage:\n");
         printf("\t" EXE ".exe --file <ELF file> [--timeout <max time>] [--signature <signature file>] [--trace]\n");
         printf("\t" EXE ".exe --help\n");
@@ -64,6 +65,7 @@ int main(int argc, char **argv) {
                 printf("[CORETB] Generate VCD file in build folder\n");
                 tb->OpenTrace(vcdFile);
         }
+        printf("Using configuration file: " BCONFIG"\n");
         int exitCode = tb->SimulateCore(s_progfile, timeout, s_signature);
         tb->CloseTrace();
         delete tb;
