@@ -431,6 +431,9 @@ class Bellatrix(Elaboratable):
         m.add_kill_source(exception.m_exception & m.valid)
         # ----------------------------------------------------------------------
         # Write-back stage
+        if self.configuration.getOption('isa', 'enable_extra_csr'):
+            cpu.d.comb += exception.w_retire.eq(w.endpoint_a.is_instruction)
+
         with cpu.If(w.endpoint_a.load):
             cpu.d.comb += w_result.eq(w.endpoint_a.ld_result)
         with cpu.Elif(w.endpoint_a.csr):
