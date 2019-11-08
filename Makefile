@@ -47,7 +47,7 @@ help:
 	@echo -e "--------------------------------------------------------------------------------"
 	@echo -e "Please, choose one target:"
 	@echo -e "- install-compliance:         Clone the riscv-compliance test."
-	@echo -e "- setup_environment:          Create a python3 virtualenv, and installs nMigen."
+	@echo -e "- setup-environment:          Create a python3 virtualenv, and installs nMigen."
 	@echo -e "- generate-core:              Generate the verilog output file."
 	@echo -e "- generate-core-all:          Generate ALL the verilog output file."
 	@echo -e "- build-core:                 Build the verilator testbench."
