@@ -126,7 +126,7 @@ module ram #(
 
     always @(posedge clk) begin
         dwbs_dat_o <= 32'hx;
-        if (dwbs_we_i && d_valid) begin
+        if (dwbs_we_i && d_valid && dwbs_ack_o) begin
             if (dwbs_sel_i[0]) mem[d_addr + 0] <= dwbs_dat_i[0+:8];
             if (dwbs_sel_i[1]) mem[d_addr + 1] <= dwbs_dat_i[8+:8];
             if (dwbs_sel_i[2]) mem[d_addr + 2] <= dwbs_dat_i[16+:8];
