@@ -19,6 +19,7 @@ class _Endpoint(Record):
                 raise ValueError('{} cannot be used as a signal in the endpoint layout.')
 
         full_layout = [
+            ('is_instruction', 1, direction),
             ('valid', 1, direction),
             ('stall', 1, DIR_FANOUT if direction is DIR_FANIN else DIR_FANIN)
         ]
@@ -31,9 +32,10 @@ class _Endpoint(Record):
 
 class Stage(Elaboratable):
     def __init__(self, ep_a_layout, ep_b_layout):
-        self.kill  = Signal()
-        self.stall = Signal()
-        self.valid = Signal()
+        self.kill           = Signal()
+        self.stall          = Signal()
+        self.valid          = Signal()
+        self.is_instruction = Signal()
 
         if ep_a_layout is None and ep_b_layout is None:
             raise ValueError("Empty endpoint layout. Abort")
@@ -58,6 +60,7 @@ class Stage(Elaboratable):
         # give the stall signal to the previous stage
         if hasattr(self, 'endpoint_a'):
             m.d.comb += [
+                self.is_instruction.eq(self.endpoint_a.is_instruction | self.endpoint_a.valid),
                 self.valid.eq(self.endpoint_a.valid),
                 self.endpoint_a.stall.eq(self.stall)
             ]
@@ -65,13 +68,23 @@ class Stage(Elaboratable):
         # Add the 'stall' signal from next stage to the list of stall sources to this stage
         # Generate the local 'kill' signal, and give it to the next stage. No conditions.
         # Generate the 'valid' signal
+        # is_instruction indicates if the stage was a valid instruction once.
         if hasattr(self, 'endpoint_b'):
             with m.If(self.kill):
-                m.d.sync += self.endpoint_b.valid.eq(0)
+                m.d.sync += [
+                    self.endpoint_b.valid.eq(0),
+                    self.endpoint_b.is_instruction.eq(self.is_instruction)
+                ]
             with m.Elif(~self.stall):
-                m.d.sync += self.endpoint_b.valid.eq(self.valid)
+                m.d.sync += [
+                    self.endpoint_b.valid.eq(self.valid),
+                    self.endpoint_b.is_instruction.eq(self.is_instruction)
+                ]
             with m.Elif(~self.endpoint_b.stall):
-                m.d.sync += self.endpoint_b.valid.eq(0)
+                m.d.sync += [
+                    self.endpoint_b.valid.eq(0),
+                    self.endpoint_b.is_instruction.eq(0)
+                ]
 
             m.d.comb += self.kill.eq(reduce(or_, self._kill_sources, 0))
             self.add_stall_source(self.endpoint_b.stall)

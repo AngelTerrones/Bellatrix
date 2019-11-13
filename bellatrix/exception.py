@@ -1,3 +1,4 @@
+from nmigen import Cat
 from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
@@ -17,6 +18,10 @@ class ExceptionCSR:
             self.mimpid    = CSR(CSRIndex.MIMPID, 'mimpid', basic_layout)
             self.marchid   = CSR(CSRIndex.MARCHID, 'marchid', basic_layout)
             self.mvendorid = CSR(CSRIndex.MVENDORID, 'mvendorid', basic_layout)
+            self.minstret  = CSR(CSRIndex.MINSTRET, 'minstret', basic_layout)
+            self.mcycle    = CSR(CSRIndex.MCYCLE, 'mcycle', basic_layout)
+            self.minstreth = CSR(CSRIndex.MINSTRETH, 'minstreth', basic_layout)
+            self.mcycleh   = CSR(CSRIndex.MCYCLEH, 'mcycleh', basic_layout)
         self.mstatus   = CSR(CSRIndex.MSTATUS, 'mstatus', mstatus_layout)
         self.mie       = CSR(CSRIndex.MIE, 'mie', mie_layout)
         self.mtvec     = CSR(CSRIndex.MTVEC, 'mtvec', mtvec_layout)
@@ -32,6 +37,7 @@ class ExceptionCSR:
         ]
         if extra_csr:
             self.csr_list += [self.misa, self.mhartid, self.mimpid, self.marchid, self.mvendorid]
+            self.csr_list += [self.minstret, self.mcycle, self.minstreth, self.mcycleh]
 
 
 class ExceptionUnit(Elaboratable):
@@ -62,6 +68,8 @@ class ExceptionUnit(Elaboratable):
         self.m_valid              = Signal()
         self.m_stall              = Signal()
         self.m_exception          = Signal()
+        if self.configuration.getOption('isa', 'enable_extra_csr'):
+            self.w_retire = Signal()
 
     def elaborate(self, platform):
         m = Module()
@@ -156,5 +164,23 @@ class ExceptionUnit(Elaboratable):
                 # restore old mie
                 # No other priviledge mode, so nothing more to do
                 m.d.sync += self.csr.mstatus.read.mie.eq(self.csr.mstatus.read.mpie)
+
+        # counters
+        if self.configuration.getOption('isa', 'enable_extra_csr'):
+            mcycle   = Signal(64)
+            minstret = Signal(64)
+
+            m.d.sync += [
+                self.csr.mcycle.read.eq(mcycle[:32]),
+                self.csr.mcycleh.read.eq(mcycle[32:64]),
+                #
+                self.csr.minstret.read.eq(minstret[:32]),
+                self.csr.minstreth.read.eq(minstret[32:64])
+            ]
+            m.d.comb += mcycle.eq(Cat(self.csr.mcycle.read, self.csr.mcycleh.read) + 1)
+            with m.If(self.w_retire):
+                m.d.comb += minstret.eq(Cat(self.csr.minstret.read, self.csr.minstreth.read) + 1)
+            with m.Else():
+                m.d.comb += minstret.eq(Cat(self.csr.minstret.read, self.csr.minstreth.read))
 
         return m

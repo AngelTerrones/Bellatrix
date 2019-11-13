@@ -32,7 +32,7 @@ class BranchPredictor(Elaboratable):
 
         _bits_index = log2_int(size)
         _bits_tag   = 32 - _bits_index
-        _btb_width  = 32 + _bits_tag  # data + tag
+        _btb_width  = 1 + 32 + _bits_tag  # valid + data + tag
         _btb_depth  = 1 << _bits_index
 
         _btb_layout = [
@@ -45,7 +45,6 @@ class BranchPredictor(Elaboratable):
             ('index', _bits_index),
             ('tag', _bits_tag)
         ]
-        valid = Signal(_btb_depth)
 
         btb    = Memory(width=_btb_width, depth=_btb_depth)
         btb_rp = btb.read_port()
@@ -64,10 +63,6 @@ class BranchPredictor(Elaboratable):
         m_pc        = Record(_pc_layout)
         hit         = Signal()
         pstate_next = Signal(2)
-        bit_valid   = Signal()
-
-        # prediction
-        m.d.sync += bit_valid.eq(valid.bit_select(Mux(self.a_stall, f_pc.index, a_pc.index), 1))
 
         m.d.comb += [
             btb_rp.addr.eq(Mux(self.a_stall, f_pc.index, a_pc.index)),
@@ -85,7 +80,6 @@ class BranchPredictor(Elaboratable):
 
         # update
         m.d.comb += [
-            valid.bit_select(m_pc.index, 1).eq(1),
             btb_wp.addr.eq(m_pc.index),
             btb_wp.data.eq(Cat(self.m_target_pc, m_pc.tag, 1)),
             btb_wp.en.eq(self.m_update),
