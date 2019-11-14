@@ -68,7 +68,11 @@ install-compliance:
 # ------------------------------------------------------------------------------
 # compliance tests: TODO create custom targer Bellatrix in repo
 # ------------------------------------------------------------------------------
-core-sim-compliance: core-sim-compliance-rv32i core-sim-compliance-rv32ui core-sim-compliance-rv32mi core-sim-compliance-rv32im
+core-sim-compliance-basic: core-sim-compliance-rv32i core-sim-compliance-rv32ui core-sim-compliance-rv32mi
+
+core-sim-compliance-extra: core-sim-compliance-basic core-sim-compliance-rv32Zicsr core-sim-compliance-rv32Zifencei
+
+core-sim-compliance: core-sim-compliance-extra core-sim-compliance-rv32im
 
 core-sim-compliance-rv32i: build-core
 	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32i
@@ -81,6 +85,12 @@ core-sim-compliance-rv32mi: build-core
 
 core-sim-compliance-rv32ui: build-core
 	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32ui
+
+core-sim-compliance-rv32Zicsr: build-core
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zicsr
+
+core-sim-compliance-rv32Zifencei: build-core
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zifencei
 
 build-extra-tests:
 	$(SUBMAKE) -C tests/extra-tests
