@@ -398,6 +398,10 @@ class Bellatrix(Elaboratable):
             csr_wp.en.eq(m.endpoint_a.csr_we & m.valid),
             csr_wp.data.eq(csr_wdata)
         ]
+        if (self.configuration.getOption('isa', 'enable_user_mode')):
+            cpu.d.comb += csr.privmode.eq(exception.m_privmode)
+        else:
+            cpu.d.comb += csr.privmode.eq(0b11)
 
         # exception unit
         cpu.d.comb += [

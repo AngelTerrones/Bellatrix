@@ -107,6 +107,12 @@ class ExceptionCause:
     I_M_EXTERNAL                = 11
 
 
+class PrivMode:
+    User       = 0
+    Supervisor = 1
+    Machine    = 3
+
+
 # Behavior for field within the CSRs
 # WPRI: Write Preserve Values, Reads Ignore Values
 # WLRL: Write/Read Only Legal Values
