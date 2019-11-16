@@ -144,6 +144,21 @@ class ExceptionUnit(Elaboratable):
             self.csr.mstatus.read.mpp.reset = PrivMode.Machine
             m.d.sync += self.csr.mstatus.read.mpp.eq(PrivMode.Machine)  # Only machine mode
 
+        # Constant fields in MSTATUS
+        # Disable because S-mode is not supported
+        m.d.sync += [
+            self.csr.mstatus.read.sie.eq(0),
+            self.csr.mstatus.read.spie.eq(0),
+            self.csr.mstatus.read.spp.eq(0),
+            self.csr.mstatus.read.mxr.eq(0),
+            self.csr.mstatus.read.sum.eq(0),
+            self.csr.mstatus.read.tvm.eq(0),
+            self.csr.mstatus.read.tsr.eq(0),
+            self.csr.mstatus.read.fs.eq(0),
+            self.csr.mstatus.read.xs.eq(0),
+            self.csr.mstatus.read.sd.eq(0)
+        ]
+
         # behavior for exception handling
         with m.If(self.m_valid):
             with m.If(self.m_exception):
