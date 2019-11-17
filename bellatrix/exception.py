@@ -12,7 +12,7 @@ from .isa import PrivMode
 
 
 class ExceptionCSR:
-    def __init__(self, extra_csr=False):
+    def __init__(self, extra_csr=False, user_mode=False):
         if extra_csr:
             self.misa      = CSR(CSRIndex.MISA, 'misa', misa_layout)
             self.mhartid   = CSR(CSRIndex.MHARTID, 'mhartid', basic_layout)
@@ -23,6 +23,11 @@ class ExceptionCSR:
             self.mcycle    = CSR(CSRIndex.MCYCLE, 'mcycle', basic_layout)
             self.minstreth = CSR(CSRIndex.MINSTRETH, 'minstreth', basic_layout)
             self.mcycleh   = CSR(CSRIndex.MCYCLEH, 'mcycleh', basic_layout)
+            if user_mode:
+                self.instret  = CSR(CSRIndex.INSTRET, 'instret', basic_layout)
+                self.cycle    = CSR(CSRIndex.CYCLE, 'cycle', basic_layout)
+                self.instreth = CSR(CSRIndex.INSTRETH, 'instreth', basic_layout)
+                self.cycleh   = CSR(CSRIndex.CYCLEH, 'cycleh', basic_layout)
         self.mstatus   = CSR(CSRIndex.MSTATUS, 'mstatus', mstatus_layout)
         self.mie       = CSR(CSRIndex.MIE, 'mie', mie_layout)
         self.mtvec     = CSR(CSRIndex.MTVEC, 'mtvec', mtvec_layout)
@@ -39,6 +44,8 @@ class ExceptionCSR:
         if extra_csr:
             self.csr_list += [self.misa, self.mhartid, self.mimpid, self.marchid, self.mvendorid]
             self.csr_list += [self.minstret, self.mcycle, self.minstreth, self.mcycleh]
+            if user_mode:
+                self.csr_list += [self.instret, self.cycle, self.instreth, self.cycleh]
 
 
 class ExceptionUnit(Elaboratable):
@@ -47,7 +54,7 @@ class ExceptionUnit(Elaboratable):
         self.extra_csr = configuration.getOption('isa', 'enable_extra_csr')
         self.rv32m     = configuration.getOption('isa', 'enable_rv32m')
 
-        self.csr = ExceptionCSR(self.extra_csr)
+        self.csr = ExceptionCSR(extra_csr=self.extra_csr, user_mode=self.usermode)
 
         self.external_interrupt   = Signal()
         self.software_interrupt   = Signal()
@@ -244,10 +251,21 @@ class ExceptionUnit(Elaboratable):
                 self.csr.minstret.read.eq(minstret[:32]),
                 self.csr.minstreth.read.eq(minstret[32:64])
             ]
+
             m.d.comb += mcycle.eq(Cat(self.csr.mcycle.read, self.csr.mcycleh.read) + 1)
             with m.If(self.w_retire):
                 m.d.comb += minstret.eq(Cat(self.csr.minstret.read, self.csr.minstreth.read) + 1)
             with m.Else():
                 m.d.comb += minstret.eq(Cat(self.csr.minstret.read, self.csr.minstreth.read))
+
+            # shadow versions of MCYCLE and MINSTRET
+            if self.usermode:
+                m.d.sync += [
+                    self.csr.cycle.read.eq(mcycle[:32]),
+                    self.csr.cycleh.read.eq(mcycle[32:64]),
+                    #
+                    self.csr.instret.read.eq(minstret[:32]),
+                    self.csr.instreth.read.eq(minstret[32:64])
+                ]
 
         return m
