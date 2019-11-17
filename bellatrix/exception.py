@@ -80,6 +80,11 @@ class ExceptionUnit(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
+        # Read/write behavior for all registers.
+        for reg in self.csr.csr_list:
+            with m.If(reg.we):
+                m.d.sync += reg.read.eq(reg.write)
+
         # constants (at least, the important ones)
         if self.extra_csr:
             misa = 0x1 << 30 | (1 << (ord('i') - ord('a')))  # 32-bits processor. RV32IM
@@ -116,19 +121,17 @@ class ExceptionUnit(Elaboratable):
             interrupts.i[ExceptionCause.I_M_EXTERNAL].eq(self.csr.mip.read.meip & self.csr.mie.read.meie),
         ]
 
+        # generate the exception/trap/interrupt signal to kill the pipeline
+        m.d.comb += self.m_exception.eq(~traps.n | (~interrupts.n & self.csr.mstatus.read.mie & ~self.m_store))
+
+        # --------------------------------------------------------------------------------
+        # overwrite values from the RW circuit
+        # --------------------------------------------------------------------------------
         m.d.sync += [
             self.csr.mip.read.msip.eq(self.software_interrupt),
             self.csr.mip.read.mtip.eq(self.timer_interrupt),
             self.csr.mip.read.meip.eq(self.external_interrupt)
         ]
-
-        # generate the exception/trap/interrupt signal to kill the pipeline
-        m.d.comb += self.m_exception.eq(~traps.n | (~interrupts.n & self.csr.mstatus.read.mie & ~self.m_store))
-
-        # default behavior for all registers.
-        for reg in self.csr.csr_list:
-            with m.If(reg.we):
-                m.d.sync += reg.read.eq(reg.write)
 
         if self.usermode:
             privmode       = Signal(2)
