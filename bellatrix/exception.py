@@ -72,15 +72,20 @@ class ExceptionUnit(Elaboratable):
         self.m_valid              = Signal()
         self.m_stall              = Signal()
         self.m_exception          = Signal()
-        if self.usermode:
-            self.m_privmode = Signal(2)
+        self.m_privmode           = Signal(2)
         if self.extra_csr:
             self.w_retire = Signal()
 
     def elaborate(self, platform):
         m = Module()
 
+        privmode = Signal(2)
+        privmode.reset = PrivMode.Machine  # default mode is Machine
+
+        m.d.comb += self.m_privmode.eq(privmode)
+
         # Read/write behavior for all registers.
+        # maybe write this manually for each register?
         for reg in self.csr.csr_list:
             with m.If(reg.we):
                 m.d.sync += reg.read.eq(reg.write)
@@ -122,7 +127,8 @@ class ExceptionUnit(Elaboratable):
         ]
 
         # generate the exception/trap/interrupt signal to kill the pipeline
-        m.d.comb += self.m_exception.eq(~traps.n | (~interrupts.n & self.csr.mstatus.read.mie & ~self.m_store))
+        # interrupts are globally enable for less priviledge mode than Machine
+        m.d.comb += self.m_exception.eq(~traps.n | (~interrupts.n & (self.csr.mstatus.read.mie | (privmode != PrivMode.Machine)) & ~self.m_store))
 
         # --------------------------------------------------------------------------------
         # overwrite values from the RW circuit
@@ -134,11 +140,7 @@ class ExceptionUnit(Elaboratable):
         ]
 
         if self.usermode:
-            privmode       = Signal(2)
-            privmode.reset = PrivMode.Machine  # default mode is User
             self.csr.mstatus.read.mpp.reset = PrivMode.User
-
-            m.d.comb += self.m_privmode.eq(privmode)
             with m.If(self.csr.mstatus.write.mpp != PrivMode.User):
                 # In case of writting an invalid priviledge mode, force a valid one
                 # For this case, anything different to the User mode is forced to Machine mode.
@@ -148,8 +150,11 @@ class ExceptionUnit(Elaboratable):
             m.d.sync += self.csr.mstatus.read.mpp.eq(PrivMode.Machine)  # Only machine mode
 
         # Constant fields in MSTATUS
-        # Disable because S-mode is not supported
+        # Disable because S-mode and User-level interrupts
+        # are not supported.
         m.d.sync += [
+            self.csr.mstatus.read.uie.eq(0),
+            self.csr.mstatus.read.upie.eq(0),
             self.csr.mstatus.read.sie.eq(0),
             self.csr.mstatus.read.spie.eq(0),
             self.csr.mstatus.read.spp.eq(0),
@@ -161,6 +166,21 @@ class ExceptionUnit(Elaboratable):
             self.csr.mstatus.read.xs.eq(0),
             self.csr.mstatus.read.sd.eq(0)
         ]
+        # MIP and MIE
+        m.d.sync += [
+            self.csr.mip.read.usip.eq(0),
+            self.csr.mip.read.ssip.eq(0),
+            self.csr.mip.read.utip.eq(0),
+            self.csr.mip.read.stip.eq(0),
+            self.csr.mip.read.ueip.eq(0),
+            self.csr.mip.read.seip.eq(0),
+            self.csr.mie.read.usie.eq(0),
+            self.csr.mie.read.ssie.eq(0),
+            self.csr.mie.read.utie.eq(0),
+            self.csr.mie.read.stie.eq(0),
+            self.csr.mie.read.ueie.eq(0),
+            self.csr.mie.read.seie.eq(0)
+        ]
 
         # behavior for exception handling
         with m.If(self.m_valid):
@@ -169,14 +189,12 @@ class ExceptionUnit(Elaboratable):
                 m.d.sync += [
                     self.csr.mepc.read.base.eq(self.m_pc[2:]),
                     self.csr.mstatus.read.mpie.eq(self.csr.mstatus.read.mie),
-                    self.csr.mstatus.read.mie.eq(0)
+                    self.csr.mstatus.read.mie.eq(0),
+
+                    # Change priviledge mode
+                    privmode.eq(PrivMode.Machine),
+                    self.csr.mstatus.read.mpp.eq(privmode)
                 ]
-                if self.usermode:
-                    # If user mode is enabled, we have to go move one priviledge mode down
-                    m.d.sync += [
-                        privmode.eq(PrivMode.Machine),
-                        self.csr.mstatus.read.mpp.eq(privmode)
-                    ]
                 # store cause/mtval
                 with m.If(~traps.n):
                     m.d.sync += [
@@ -207,12 +225,12 @@ class ExceptionUnit(Elaboratable):
             with m.Elif(self.m_mret):
                 # restore old mie
                 # Restore priviledge mode
-                m.d.sync += self.csr.mstatus.read.mie.eq(self.csr.mstatus.read.mpie)
+                m.d.sync += [
+                    self.csr.mstatus.read.mie.eq(self.csr.mstatus.read.mpie),
+                    privmode.eq(self.csr.mstatus.read.mpp),
+                ]
                 if self.usermode:
-                    m.d.sync += [
-                        privmode.eq(self.csr.mstatus.read.mpp),
-                        self.csr.mstatus.read.mpp.eq(PrivMode.User)
-                    ]
+                    m.d.sync += self.csr.mstatus.read.mpp.eq(PrivMode.User)
 
         # counters
         if self.extra_csr:

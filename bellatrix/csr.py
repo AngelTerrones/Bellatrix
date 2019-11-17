@@ -41,6 +41,7 @@ class CSRFile(Elaboratable):
         self._csr_map     = dict()
         self._read_ports  = []
         self._write_ports = []
+
         self.privmode     = Signal(2)
         self.invalid      = Signal()
 
