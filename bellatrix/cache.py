@@ -63,8 +63,19 @@ class Cache(Elaboratable):
         self.bus_ack   = Signal()
         self.bus_err   = Signal()
 
+        self.access_cnt = Signal(40)
+        self.miss_cnt   = Signal(40)
+
     def elaborate(self, platform):
         m = Module()
+
+        # -------------------------------------------------------------------------
+        # Performance counter
+        with m.If(~self.s1_stall & self.s1_valid):
+            m.d.sync += self.access_cnt.eq(self.access_cnt + 1)
+        with m.If(self.s2_valid & self.s2_miss & ~self.bus_valid):
+            m.d.sync += self.miss_cnt.eq(self.miss_cnt + 1)
+        # -------------------------------------------------------------------------
 
         way_layout = [
             ('data',     32 * self.nwords),
