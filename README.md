@@ -40,7 +40,7 @@ See LICENSE file for full copyright and license information.
 - Optional multiplier and divider, for the RV32M ISA.
 - No MMU.
 - No FPU. Software-base floating point support (toolchain).
-- Machine [privilege mode][2]. Current version: v1.11.
+- Support for Machine and User (optional) [privilege modes][2], version v1.11.
 - Support for external interrupts, as described in the [privilege mode manual][2].
 - [Wishbone B4][3] Bus Interface, in classic mode.
 
@@ -48,7 +48,7 @@ See LICENSE file for full copyright and license information.
 
 - Core described in python, using the [nMigen][4] toolbox.
 - Simulation done in C++ using [Verilator][5].
-- [Toolchain][6] using gcc.
+- Toolchain using gcc.
 - [Validation suit][7] written in assembly.
 
 ## Directory Layout
@@ -77,6 +77,7 @@ The following parameters are used to configure the core:
 | `reset`     | `reset_address`    | `0x80000000`  | Reset address
 | `isa`       | `enable_rv32m`     | `True`        | Enable instructions for ISA RV32M
 |             | `enable_extra_csr` | `True`        | Enable implementations of `misa`, `mhartid`, `mipid`, `marchid` and `mvendorid`
+|             | `enable_user_mode` | `False`       | Enable User priviledge mode.
 | `predictor` | `enable_predictor` | `True`        | Enable branch predictor implementation
 |             | `size`             | `4096`        | Size of branch cache (power of 2)
 | `icache`    | `enable`           | `True`        | Enable instruction cache
@@ -163,7 +164,7 @@ This downloads a fork of [riscv-compliance][7] with added support for this core.
 
 ### Define `RVGCC_PATH`
 Before running the compliance test suit, benchmarks and extra-tests, define the variable `RVGCC_PATH` to the `bin` folder of the toolchain:
-> export RVGCC_PATH=/path/to/bin/folder/
+> export RVGCC_PATH=/path/to/bin/folder/of/riscv-gcc
 
 ### Generate the C++ model and compile it
 To compile the verilator testbench, execute the following command in the root folder of
@@ -186,16 +187,15 @@ To execute a single `.elf` file:
 #### Parameters of the C++ model
 
 - `file`: RISC-V ELF file to execute.
-- `timeout (optional)`: Maximum simulation time before aborting.
-- `signature (optional)`: Write memory dump to a file. For verification purposes.
-- `trace (optional)`: Enable VCD dumps. Writes the output file to `build/trace_core.vcd`.
+- `timeout`: (Optional) Maximum simulation time before aborting.
+- `signature`: (Optional) Write memory dump to a file. For verification purposes.
+- `trace`: (Optional) Enable VCD dumps. Writes the output file to `build/trace_core.vcd`.
 
 [1]: https://riscv.org/specifications/
 [2]: https://riscv.org/specifications/privileged-isa/
 [3]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
 [4]: https://github.com/m-labs/nmigen/
 [5]: https://www.veripool.org/wiki/verilator
-[6]: http://riscv.org/software-tools/
 [7]: https://github.com/riscv/riscv-compliance
 [8]: https://www.sifive.com/boards
 [9]: https://static.dev.sifive.com/dev-tools/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz

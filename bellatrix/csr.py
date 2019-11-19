@@ -41,6 +41,8 @@ class CSRFile(Elaboratable):
         self._csr_map     = dict()
         self._read_ports  = []
         self._write_ports = []
+
+        self.privmode     = Signal(2)
         self.invalid      = Signal()
 
     def add_csr_from_list(self, csr_list):
@@ -73,31 +75,51 @@ class CSRFile(Elaboratable):
     def elaborate(self, platform):
         m = Module()
 
-        invalid_r = Signal()
-        invalid_w = Signal()
+        invalid_undef = Signal()  # The register is not defined
+        invalid_ro    = Signal()  # The register is read-only.
+        invalid_priv  = Signal()  # The priviledge mode is incorrect.
 
+        # ----------------------------------------
         # do the read
-        m.d.comb += invalid_r.eq(0)
         for rport in self._read_ports:
             with m.Switch(rport.addr):
                 for addr, csr in self._csr_map.items():
                     with m.Case(addr):
                         m.d.comb += rport.data.eq(csr.read & csr.mask)
-                with m.Default():
-                    m.d.comb += invalid_r.eq(1)
 
+        # ----------------------------------------
         # do the write
-        m.d.comb += invalid_r.eq(0)
-        for wport in self._write_ports:
-            with m.Switch(wport.addr):
-                for addr, csr in self._csr_map.items():
-                    with m.Case(addr):
-                        m.d.comb += [
-                            csr.we.eq(wport.en),
-                            csr.write.eq(wport.data & csr.mask)
-                        ]
-                with m.Default():
-                    m.d.comb += invalid_r.eq(1)
 
-        m.d.comb += self.invalid.eq(invalid_r | invalid_w)
+        for idx, wport in enumerate(self._write_ports):
+            if idx == 0:
+                # The first write port is for pipeline use, and is the only one that
+                # can generate exceptions
+                # Other write ports do not generate exceptions: for debug use, for example.
+
+                # Priv mode must be greater or equal ot he priv mode of the register.
+                m.d.comb += [
+                    invalid_ro.eq(wport.addr[10:12] == 0b11),
+                    invalid_priv.eq(wport.addr[8:10] > self.privmode)
+                ]
+
+                with m.Switch(wport.addr):
+                    for addr, csr in self._csr_map.items():
+                        with m.Case(addr):
+                            m.d.comb += [
+                                csr.we.eq(wport.en & ~invalid_ro & ~invalid_priv),
+                                csr.write.eq(wport.data & csr.mask)
+                            ]
+                    with m.Default():
+                        m.d.comb += invalid_undef.eq(1)
+            else:
+                with m.Switch(wport.addr):
+                    for addr, csr in self._csr_map.items():
+                        with m.Case(addr):
+                            m.d.comb += [
+                                csr.we.eq(wport.en),
+                                csr.write.eq(wport.data & csr.mask)
+                            ]
+
+        m.d.comb += self.invalid.eq(invalid_undef | (invalid_ro & wport.en) | invalid_priv)
+
         return m
