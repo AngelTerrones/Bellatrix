@@ -6,9 +6,9 @@ from .isa import Funct3
 from .isa import Funct7
 from .isa import Funct12
 from .isa import Opcode
+from .isa import PrivMode
 from functools import reduce
 from operator import or_
-
 
 class Type:
     R = 0
@@ -56,6 +56,7 @@ class DecoderUnit(Elaboratable):
         self.illegal         = Signal()
         self.multiply        = Signal()
         self.divide          = Signal()
+        self.privmode        = Signal(2)
 
     def elaborate(self, platform):
         m = Module()
@@ -217,7 +218,7 @@ class DecoderUnit(Elaboratable):
             self.ebreak.eq(match([
                 (Opcode.SYSTEM, Funct3.PRIV, None, Funct12.EBREAK)
             ])),
-            self.mret.eq(match([
+            self.mret.eq((self.privmode == PrivMode.Machine) & match([
                 (Opcode.SYSTEM, Funct3.PRIV, None, Funct12.MRET)
             ])),
             self.fence_i.eq(match([

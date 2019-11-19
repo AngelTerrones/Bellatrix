@@ -192,7 +192,10 @@ class Bellatrix(Elaboratable):
         f.add_kill_source(x.endpoint_a.fence_i & x.valid & ~x.stall)
         # ----------------------------------------------------------------------
         # Decode Stage
-        cpu.d.comb += decoder.instruction.eq(d.endpoint_a.instruction)
+        cpu.d.comb += [
+            decoder.instruction.eq(d.endpoint_a.instruction),
+            decoder.privmode.eq(exception.m_privmode)
+        ]
 
         with cpu.If(~d.stall):
             cpu.d.comb += [
