@@ -14,6 +14,7 @@ from nmigen.utils import log2_int
 
 class Cache(Elaboratable):
     def __init__(self, nlines, nwords, nways, start_addr=0, end_addr=2**32, enable_write=True):
+        # enable_rite = data cache
         if nlines == 0 or (nlines & (nlines - 1)):
             raise ValueError(f'nlines must be a power of 2: {nlines}')
         if nwords not in (4, 8, 16):
@@ -76,32 +77,37 @@ class Cache(Elaboratable):
 
         ways     = Array(Record(way_layout) for _way in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)
+
         # set the LRU
         if self.nways == 1:
+            # One way: LRU is useless
             lru = Const(0)  # self.nlines
         else:
+            # LRU es un vector de N bits, cada uno indicado el set a reemplazar
+            # como NWAY es máximo 2, cada LRU es de un bit
             lru = Signal(self.nlines)
             with m.If(self.bus_valid & self.bus_ack & self.bus_last):  # err ^ ack == 1
                 _lru = lru.bit_select(self.s2_address.line, 1)
                 m.d.sync += lru.bit_select(self.s2_address.line, 1).eq(~_lru)
 
-        # hit/miss
+        # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
         for idx, way in enumerate(ways):
             m.d.comb += way_hit.i[idx].eq((way.tag == self.s2_address.tag) & way.valid)
 
         m.d.comb += self.s2_miss.eq(way_hit.n)
         if self.enable_write:
+            # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
             m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we & self.s2_valid)
 
-        # read data
+        # read data from the cache
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))
 
         with m.FSM():
             with m.State('READ'):
                 with m.If(self.s2_re & self.s2_miss & self.s2_valid):
                     m.d.sync += [
-                        self.bus_addr.eq(self.s2_address),  # WARNING extra_bits
+                        self.bus_addr.eq(self.s2_address),
                         self.bus_valid.eq(1),
                         fill_cnt.eq(self.s2_address.offset - 1)
                     ]
@@ -113,7 +119,6 @@ class Cache(Elaboratable):
                 with m.If(self.bus_ack & self.bus_last | self.bus_err):
                     m.d.sync += self.bus_valid.eq(0)
                 with m.If(~self.bus_valid | self.s1_flush):
-                    # in case of flush, abort ongoing refill.
                     m.next = 'READ'
                     m.d.sync += self.bus_valid.eq(0)
 
@@ -123,16 +128,16 @@ class Cache(Elaboratable):
         # generate for N ways
         for way in ways:
             # create the memory structures for valid, tag and data.
-            valid = Signal(self.nlines)
+            valid = Signal(self.nlines)  # Valid bits
 
-            tag_m  = Memory(width=len(way.tag), depth=self.nlines)
+            tag_m  = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
             tag_rp = tag_m.read_port()
             tag_wp = tag_m.write_port()
             m.submodules += tag_rp, tag_wp
 
-            data_m  = Memory(width=len(way.data), depth=self.nlines)
+            data_m  = Memory(width=len(way.data), depth=self.nlines)  # data memory
             data_rp = data_m.read_port()
-            data_wp = data_m.write_port(granularity=32)
+            data_wp = data_m.write_port(granularity=32)  # implica que solo puedo escribir palabras de 32 bits.
             m.submodules += data_rp, data_wp
 
             # handle valid
@@ -160,6 +165,8 @@ class Cache(Elaboratable):
             ]
 
             # update cache: CPU or Refill
+            # El puerto de escritura se multiplexa debido a que la memoria solo puede tener un
+            # puerto de escritura.
             if self.enable_write:
                 update_addr = Signal(len(data_wp.addr))
                 update_data = Signal(len(data_wp.data))
@@ -179,6 +186,8 @@ class Cache(Elaboratable):
                         update_we.bit_select(self.s2_address.offset, 1).eq(way.sel_we & ~self.s2_miss)
                     ]
                 m.d.comb += [
+                    # Aux data: no tengo granularidad de byte en el puerto de escritura. Así que para el
+                    # caso en el cual el CPU tiene que escribir, hay que construir el dato (wrord) a reemplazar
                     aux_wdata.eq(Cat(
                         Mux(self.s2_sel[0], self.s2_wdata.word_select(0, 8), self.s2_rdata.word_select(0, 8)),
                         Mux(self.s2_sel[1], self.s2_wdata.word_select(1, 8), self.s2_rdata.word_select(1, 8)),
