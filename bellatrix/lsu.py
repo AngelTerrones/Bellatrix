@@ -256,9 +256,12 @@ class CachedLSU(LSUInterface, Elaboratable):
             dcache.s1_flush.eq(0),
             dcache.s1_valid.eq(self.x_valid),
             dcache.s1_stall.eq(self.x_stall),
+            dcache.s1_access.eq(self.x_load | self.x_store),
             dcache.s2_address.eq(self.m_addr),
             dcache.s2_evict.eq(0),  # Evict is not used. Remove maybe?
             dcache.s2_valid.eq(self.m_valid),
+            dcache.s2_stall.eq(self.m_stall),
+            dcache.s2_access.eq(self.m_load | self.m_store),
             dcache.s2_re.eq(self.m_load),
             dcache.s2_wdata.eq(m_data_w),
             dcache.s2_sel.eq(m_byte_sel),
