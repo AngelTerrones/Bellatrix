@@ -116,9 +116,12 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
             icache.s1_flush.eq(self.flush),
             icache.s1_valid.eq(self.a_valid & a_use_cache),
             icache.s1_stall.eq(self.a_stall),
+            icache.s1_access.eq(1),
             icache.s2_address.eq(self.f_pc),
             icache.s2_evict.eq(0),
             icache.s2_valid.eq(self.f_valid & f_use_cache),
+            icache.s2_access.eq(1),
+            icache.s2_stall.eq(self.f_stall),
             icache.s2_re.eq(1)
         ]
 

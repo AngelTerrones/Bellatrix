@@ -45,9 +45,12 @@ class Cache(Elaboratable):
         self.s1_flush   = Signal()
         self.s1_valid   = Signal()
         self.s1_stall   = Signal()
+        self.s1_access  = Signal()
         self.s2_address = Record(pc_layout)
         self.s2_evict   = Signal()
         self.s2_valid   = Signal()
+        self.s2_stall   = Signal()
+        self.s2_access  = Signal()
         self.s2_miss    = Signal()
         self.s2_rdata   = Signal(32)
         self.s2_re      = Signal()
@@ -71,9 +74,9 @@ class Cache(Elaboratable):
 
         # -------------------------------------------------------------------------
         # Performance counter
-        with m.If(~self.s1_stall & self.s1_valid):
+        with m.If(~self.s1_stall & self.s1_valid & self.s1_access):
             m.d.sync += self.access_cnt.eq(self.access_cnt + 1)
-        with m.If(self.s2_valid & self.s2_miss & ~self.bus_valid):
+        with m.If(self.s2_valid & self.s2_miss & ~self.bus_valid & self.s2_access):
             m.d.sync += self.miss_cnt.eq(self.miss_cnt + 1)
         # -------------------------------------------------------------------------
 
