@@ -46,18 +46,26 @@ export BCONFIG = $(CONFIG)
 # ------------------------------------------------------------------------------
 help:
 	@echo -e "--------------------------------------------------------------------------------"
-	@echo -e "Please, choose one target:"
-	@echo -e "- install-compliance:         Clone the riscv-compliance test."
-	@echo -e "- setup-environment:          Create a python3 virtualenv, and installs nMigen."
-	@echo -e "- generate-core:              Generate the verilog output file."
-	@echo -e "- generate-core-all:          Generate ALL the verilog output file."
-	@echo -e "- build-core:                 Build the verilator testbench."
-	@echo -e "- build-core-all:             Build ALL verilator testbenches."
-	@echo -e "- core-sim-compliance:        Execute the compliance tests."
-	@echo -e "- core-sim-compliance-rv32i:  Execute the RV32I compliance tests."
-	@echo -e "- core-sim-compliance-rv32im: Execute the RV32IM compliance tests."
-	@echo -e "- core-sim-compliance-rv32mi: Execute machine mode compliance tests."
-	@echo -e "- core-sim-compliance-rv32ui: Execute the RV32I compliance tests (redundant)."
+	@echo -e $(BYellow)"Please, choose one target:"$(Color_Off)
+	@echo -e $(BRed)"Setup:"$(Color_Off)
+	@echo -e "- install-compliance:               Clone the riscv-compliance test."
+	@echo -e "- setup-environment:                Create a python3 virtualenv, and installs nMigen."
+	@echo -e $(BPurple)"Generate:"$(Color_Off)
+	@echo -e "- generate-core:                    Generate the verilog output file."
+	@echo -e "- generate-core-all:                Generate ALL the verilog output file."
+	@echo -e $(BBlue)"Build:"$(Color_Off)
+	@echo -e "- build-core:                       Build the verilator testbench."
+	@echo -e "- build-core-all:                   Build ALL verilator testbenches."
+	@echo -e $(BGreen)"Execute tests:"$(Color_Off)
+	@echo -e "- core-sim-compliance-basic:        Execute the rv32i, rv32ui and rv32mi tests."
+	@echo -e "- core-sim-compliance-extra:        Execute the rv32i, rv32ui, rv32mi, rv32Zicsr and rv32Zifencei tests."
+	@echo -e "- core-sim-compliance:              Execute the rv32i, rv32ui, rv32mi, rv32Zicsr, rv32Zifencei and rv32im tests."
+	@echo -e "- core-sim-compliance-rv32i:        Execute the RV32I compliance tests."
+	@echo -e "- core-sim-compliance-rv32im:       Execute the RV32IM compliance tests."
+	@echo -e "- core-sim-compliance-rv32mi:       Execute machine mode compliance tests."
+	@echo -e "- core-sim-compliance-rv32ui:       Execute the RV32I compliance tests (redundant)."
+	@echo -e "- core-sim-compliance-rv32Zicsr:    Execute the RV32Zicsr compliance tests."
+	@echo -e "- core-sim-compliance-rv32Zifencei: Execute the RV32Zifencei compliance test."
 	@echo -e "--------------------------------------------------------------------------------"
 
 # ------------------------------------------------------------------------------
@@ -66,7 +74,7 @@ help:
 install-compliance:
 	@./scripts/setup/install_compliance.sh
 # ------------------------------------------------------------------------------
-# compliance tests: TODO create custom targer Bellatrix in repo
+# compliance tests
 # ------------------------------------------------------------------------------
 core-sim-compliance-basic: core-sim-compliance-rv32i core-sim-compliance-rv32ui core-sim-compliance-rv32mi
 
