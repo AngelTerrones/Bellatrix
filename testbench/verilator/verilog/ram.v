@@ -55,24 +55,24 @@ module ram #(
                input wire        clk,
                input wire        rst,
                // Instruction
-               input wire [31:0] iwbs_addr_i,
-               input wire        iwbs_cyc_i,
-               input wire        iwbs_stb_i,
+               input wire [31:0] iwbs_addr,
+               input wire        iwbs_cyc,
+               input wire        iwbs_stb,
                input wire [2:0]  iwbs_cti,
                input wire [1:0]  iwbs_bte,
-               output reg [31:0] iwbs_dat_o,
-               output reg        iwbs_ack_o,
+               output reg [31:0] iwbs_dat_r,
+               output reg        iwbs_ack,
                // Data
-               input wire [31:0] dwbs_addr_i,
-               input wire [31:0] dwbs_dat_i,
-               input wire [ 3:0] dwbs_sel_i,
-               input wire        dwbs_cyc_i,
-               input wire        dwbs_stb_i,
+               input wire [31:0] dwbs_addr,
+               input wire [31:0] dwbs_dat_w,
+               input wire [ 3:0] dwbs_sel,
+               input wire        dwbs_cyc,
+               input wire        dwbs_stb,
                input wire [2:0]  dwbs_cti,
                input wire [1:0]  dwbs_bte,
-               input wire        dwbs_we_i,
-               output reg [31:0] dwbs_dat_o,
-               output reg        dwbs_ack_o
+               input wire        dwbs_we,
+               output reg [31:0] dwbs_dat_r,
+               output reg        dwbs_ack
                );
     //--------------------------------------------------------------------------
     localparam BYTES = 2**ADDR_WIDTH;
@@ -92,58 +92,58 @@ module ram #(
     wire [31:0] _d_addr;
 
     // read instructions
-    assign _i_addr    = {{(32 - ADDR_WIDTH){1'b0}}, iwbs_addr_i[ADDR_WIDTH - 1:2], 2'b0};
+    assign _i_addr    = {{(32 - ADDR_WIDTH){1'b0}}, iwbs_addr[ADDR_WIDTH - 1:2], 2'b0};
     assign i_last     = is_last(iwbs_cti);
     assign i_nxt_addr = wb_next_addr(_i_addr, iwbs_cti, iwbs_bte, 32);
     assign i_addr     = ((i_valid & !i_valid_r) | i_last) ? _i_addr : i_nxt_addr;
-    assign i_valid    = iwbs_cyc_i && iwbs_stb_i && (iwbs_addr_i[31:ADDR_WIDTH] == BASE_ADDR[31:ADDR_WIDTH]);
+    assign i_valid    = iwbs_cyc && iwbs_stb && (iwbs_addr[31:ADDR_WIDTH] == BASE_ADDR[31:ADDR_WIDTH]);
 
     always @(posedge clk) begin
-        iwbs_dat_o <= 32'hx;
+        iwbs_dat_r <= 32'hx;
         if (i_valid) begin
-            iwbs_dat_o[7:0]    <= mem[i_addr + 0];
-            iwbs_dat_o[15:8]   <= mem[i_addr + 1];
-            iwbs_dat_o[23:16]  <= mem[i_addr + 2];
-            iwbs_dat_o[31:24]  <= mem[i_addr + 3];
+            iwbs_dat_r[7:0]    <= mem[i_addr + 0];
+            iwbs_dat_r[15:8]   <= mem[i_addr + 1];
+            iwbs_dat_r[23:16]  <= mem[i_addr + 2];
+            iwbs_dat_r[31:24]  <= mem[i_addr + 3];
         end
     end
     always @(posedge clk or posedge rst) begin
-        iwbs_ack_o <= i_valid && (!((iwbs_cti == 3'b000) | (iwbs_cti == 3'b111)) | !iwbs_ack_o);
+        iwbs_ack <= i_valid && (!((iwbs_cti == 3'b000) | (iwbs_cti == 3'b111)) | !iwbs_ack);
 
         i_valid_r <= i_valid;
         if (rst) begin
-            iwbs_ack_o <= 0;
+            iwbs_ack <= 0;
             i_valid_r  <= 0;
         end
     end
 
     // read/write data
-    assign _d_addr    = {{(32 - ADDR_WIDTH){1'b0}}, dwbs_addr_i[ADDR_WIDTH - 1:2], 2'b0};
+    assign _d_addr    = {{(32 - ADDR_WIDTH){1'b0}}, dwbs_addr[ADDR_WIDTH - 1:2], 2'b0};
     assign d_last     = is_last(dwbs_cti);
     assign d_nxt_addr = wb_next_addr(_d_addr, dwbs_cti, dwbs_bte, 32);
     assign d_addr     = ((d_valid & !d_valid_r) | d_last) ? _d_addr : d_nxt_addr;
-    assign d_valid    = dwbs_cyc_i && dwbs_stb_i && (dwbs_addr_i[31:ADDR_WIDTH] == BASE_ADDR[31:ADDR_WIDTH]);
+    assign d_valid    = dwbs_cyc && dwbs_stb && (dwbs_addr[31:ADDR_WIDTH] == BASE_ADDR[31:ADDR_WIDTH]);
 
     always @(posedge clk) begin
-        dwbs_dat_o <= 32'hx;
-        if (dwbs_we_i && d_valid && dwbs_ack_o) begin
-            if (dwbs_sel_i[0]) mem[d_addr + 0] <= dwbs_dat_i[0+:8];
-            if (dwbs_sel_i[1]) mem[d_addr + 1] <= dwbs_dat_i[8+:8];
-            if (dwbs_sel_i[2]) mem[d_addr + 2] <= dwbs_dat_i[16+:8];
-            if (dwbs_sel_i[3]) mem[d_addr + 3] <= dwbs_dat_i[24+:8];
+        dwbs_dat_r <= 32'hx;
+        if (dwbs_we && d_valid && dwbs_ack) begin
+            if (dwbs_sel[0]) mem[d_addr + 0] <= dwbs_dat_w[0+:8];
+            if (dwbs_sel[1]) mem[d_addr + 1] <= dwbs_dat_w[8+:8];
+            if (dwbs_sel[2]) mem[d_addr + 2] <= dwbs_dat_w[16+:8];
+            if (dwbs_sel[3]) mem[d_addr + 3] <= dwbs_dat_w[24+:8];
         end else begin
-            dwbs_dat_o[7:0]    <= mem[d_addr + 0];
-            dwbs_dat_o[15:8]   <= mem[d_addr + 1];
-            dwbs_dat_o[23:16]  <= mem[d_addr + 2];
-            dwbs_dat_o[31:24]  <= mem[d_addr + 3];
+            dwbs_dat_r[7:0]    <= mem[d_addr + 0];
+            dwbs_dat_r[15:8]   <= mem[d_addr + 1];
+            dwbs_dat_r[23:16]  <= mem[d_addr + 2];
+            dwbs_dat_r[31:24]  <= mem[d_addr + 3];
         end
     end
     always @(posedge clk or posedge rst) begin
-        dwbs_ack_o <= d_valid && (!((dwbs_cti == 3'b000) | (dwbs_cti == 3'b111)) | !dwbs_ack_o);
+        dwbs_ack <= d_valid && (!((dwbs_cti == 3'b000) | (dwbs_cti == 3'b111)) | !dwbs_ack);
 
         d_valid_r <= d_valid;
         if (rst) begin
-            dwbs_ack_o <= 0;
+            dwbs_ack <= 0;
             d_valid_r  <= 0;
         end
     end
@@ -199,6 +199,6 @@ module ram #(
     endfunction
     //--------------------------------------------------------------------------
     // unused signals: remove verilator warnings about unused signal
-    wire _unused = |{iwbs_addr_i[1:0], dwbs_addr_i[1:0]};
+    wire _unused = |{iwbs_addr[1:0], dwbs_addr[1:0]};
     //--------------------------------------------------------------------------
 endmodule

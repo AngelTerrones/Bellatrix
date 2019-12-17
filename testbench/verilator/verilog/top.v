@@ -74,31 +74,31 @@ module top (
                         .software_interrupt (software_interrupt));
 
 
-    ram #(// Parameters
+    ram #(// Parametersdport__dat_w
           .ADDR_WIDTH (ADDR_WIDTH),
           .BASE_ADDR  (BASE_ADDR)
           ) memory (/*AUTOINST*/
                     // Outputs
-                    .iwbs_dat_o        (iport__dat_r[31:0]),
-                    .iwbs_ack_o        (iport__ack),
-                    .dwbs_dat_o        (dport__dat_r[31:0]),
-                    .dwbs_ack_o        (dport__ack),
+                    .iwbs_dat_r        (iport__dat_r[31:0]),
+                    .iwbs_ack          (iport__ack),
+                    .dwbs_dat_r        (dport__dat_r[31:0]),
+                    .dwbs_ack          (dport__ack),
                     // Inputs
                     .clk               (clk),
                     .rst               (rst),
-                    .iwbs_addr_i       (iport__addr[31:0]),
-                    .iwbs_cyc_i        (iport__cyc),
-                    .iwbs_stb_i        (iport__stb),
+                    .iwbs_addr         (iport__addr[31:0]),
+                    .iwbs_cyc          (iport__cyc),
+                    .iwbs_stb          (iport__stb),
                     .iwbs_cti          (iport__cti),
                     .iwbs_bte          (iport__bte),
-                    .dwbs_addr_i       (dport__addr[31:0]),
-                    .dwbs_dat_i        (dport__dat_w[31:0]),
-                    .dwbs_sel_i        (dport__sel[3:0]),
-                    .dwbs_cyc_i        (dport__cyc),
-                    .dwbs_stb_i        (dport__stb),
+                    .dwbs_addr         (dport__addr[31:0]),
+                    .dwbs_dat_w        (dport__dat_w[31:0]),
+                    .dwbs_sel          (dport__sel[3:0]),
+                    .dwbs_cyc          (dport__cyc),
+                    .dwbs_stb          (dport__stb),
                     .dwbs_cti          (dport__cti),
                     .dwbs_bte          (dport__bte),
-                    .dwbs_we_i         (dport__we));
+                    .dwbs_we           (dport__we));
     //--------------------------------------------------------------------------
 endmodule
 
