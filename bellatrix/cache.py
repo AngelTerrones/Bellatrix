@@ -92,18 +92,6 @@ class Cache(Elaboratable):
         ways     = Array(Record(way_layout) for _way in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)
 
-        # set the LRU
-        if self.nways == 1:
-            # One way: LRU is useless
-            lru = Const(0)  # self.nlines
-        else:
-            # LRU es un vector de N bits, cada uno indicado el set a reemplazar
-            # como NWAY es máximo 2, cada LRU es de un bit
-            lru = Signal(self.nlines)
-            with m.If(self.bus_valid & self.bus_ack & self.bus_last):  # err ^ ack == 1
-                _lru = lru.bit_select(self.s2_address.line, 1)
-                m.d.sync += lru.bit_select(self.s2_address.line, 1).eq(~_lru)
-
         # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
         for idx, way in enumerate(ways):
@@ -113,6 +101,20 @@ class Cache(Elaboratable):
         if self.enable_write:
             # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
             m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we & self.s2_valid)
+
+        # set the LRU
+        if self.nways == 1:
+            # One way: LRU is useless
+            lru = Const(0)  # self.nlines
+        else:
+            # LRU es un vector de N bits, cada uno indicado el set a reemplazar
+            # como NWAY es máximo 2, cada LRU es de un bit
+            lru         = Signal(self.nlines)
+            _lru        = lru.bit_select(self.s2_address.line, 1)
+            write_ended = self.bus_valid & self.bus_ack & self.bus_last  # err ^ ack = = 1
+            access_hit  = ~self.s2_miss & self.s2_valid & (way_hit.o == _lru)
+            with m.If(write_ended | access_hit):
+                m.d.sync += _lru.eq(~_lru)
 
         # read data from the cache
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))
