@@ -95,8 +95,7 @@ class Bellatrix(Elaboratable):
         # ----------------------------------------------------------------------
         # CSR
         csr.add_csr_from_list(exception.csr.csr_list)
-        csr_rp = csr.create_read_port()
-        csr_wp = csr.create_write_port()
+        csr_port = csr.create_port()
         # ----------------------------------------------------------------------
         # forward declaration of signals
         fwd_x_rs1 = Signal()
@@ -392,16 +391,15 @@ class Bellatrix(Elaboratable):
         with cpu.If(m.endpoint_a.funct3[:2] == 0b01):  # write
             cpu.d.comb += csr_wdata.eq(csr_src)
         with cpu.Elif(m.endpoint_a.funct3[:2] == 0b10):  # set
-            cpu.d.comb += csr_wdata.eq(csr_rp.data | csr_src)
+            cpu.d.comb += csr_wdata.eq(csr_port.data_r | csr_src)
         with cpu.Else():  # clear
-            cpu.d.comb += csr_wdata.eq(csr_rp.data & csr_src)
+            cpu.d.comb += csr_wdata.eq(csr_port.data_r & csr_src)
 
         # csr
         cpu.d.comb += [
-            csr_rp.addr.eq(m.endpoint_a.csr_addr),
-            csr_wp.addr.eq(m.endpoint_a.csr_addr),
-            csr_wp.en.eq(m.endpoint_a.csr_we & m.valid),
-            csr_wp.data.eq(csr_wdata)
+            csr_port.addr.eq(m.endpoint_a.csr_addr),
+            csr_port.en.eq(m.endpoint_a.csr_we & m.valid),
+            csr_port.data_w.eq(csr_wdata)
         ]
         cpu.d.comb += csr.privmode.eq(exception.m_privmode)
 
@@ -437,7 +435,7 @@ class Bellatrix(Elaboratable):
         # ----------------------------------------------------------------------
         # Write-back stage
         if self.configuration.getOption('isa', 'enable_extra_csr'):
-            cpu.d.comb += exception.w_retire.eq(w.endpoint_a.is_instruction)
+            cpu.d.comb += exception.w_retire.eq(w.is_instruction)  # use the stage's signal
 
         with cpu.If(w.endpoint_a.load):
             cpu.d.comb += w_result.eq(w.endpoint_a.ld_result)
@@ -579,7 +577,7 @@ class Bellatrix(Elaboratable):
                 m.endpoint_b.gpr_we.eq(m.endpoint_a.gpr_we),
                 m.endpoint_b.result.eq(m_result),
                 m.endpoint_b.ld_result.eq(data_sel.m_load_data),
-                m.endpoint_b.csr_result.eq(csr_rp.data),
+                m.endpoint_b.csr_result.eq(csr_port.data_r),
                 m.endpoint_b.load.eq(m.endpoint_a.load),
                 m.endpoint_b.csr.eq(m.endpoint_a.csr)
             ]
