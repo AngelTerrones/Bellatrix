@@ -129,6 +129,7 @@ $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(BUILD_FILE) $(CONFIG)
 	@echo -e "Generate core:" $(BGreen)$(shell basename $(CONFIG))$(Color_Off)
 	@PYTHONPATH=$(ROOT) python scripts/build.py --config-file $(CONFIG) generate $(GEN_FOLDER)/bellatrix_core.v
 	@sed -i '/verilog_initial_trigger/d' $(GEN_FOLDER)/bellatrix_core.v
+	@echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
 # ------------------------------------------------------------------------------
 # clean
