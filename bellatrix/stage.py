@@ -30,17 +30,17 @@ class _Endpoint(Record):
         ]
         # add signals to the final layout
         for item in layout:
-            full_layout.append((*item, direction))  # TODO item + (direction,)
+            full_layout.append(item + (direction,))  # generate new layout, adding direction to each pin
 
         super().__init__(full_layout, src_loc_at=2)
 
 
 class Stage(Elaboratable):
     def __init__(self, ep_a_layout: Optional[Layout], ep_b_layout: Optional[Layout]) -> None:
-        self.kill           = Signal()  # internal signal.
-        self.stall          = Signal()  # internal signal.
-        self.valid          = Signal()  # internal signal.
-        self.is_instruction = Signal()  # internal signal.
+        self.kill           = Signal()  # output
+        self.stall          = Signal()  # output
+        self.valid          = Signal()  # output
+        self.is_instruction = Signal()  # output
 
         if ep_a_layout is None and ep_b_layout is None:
             raise ValueError("Empty endpoint layout. Abort")
@@ -72,8 +72,8 @@ class Stage(Elaboratable):
 
         # Add the 'stall' signal from the next stage to the list of stall sources to this stage
         # Generate the local 'kill' signal.
-        # Generate the 'valid' signal
-        # is_instruction indicates if the stage was a valid instruction once.
+        # Generate the 'stall' (registered) signal
+        # 'is_instruction' indicates if the stage was a valid instruction once.
         if hasattr(self, 'endpoint_b'):
             with m.If(self.kill):
                 m.d.sync += [

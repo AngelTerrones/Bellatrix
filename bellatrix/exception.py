@@ -109,7 +109,6 @@ class ExceptionUnit(Elaboratable):
                 misa |= 1 << (ord('u') - ord('a'))  # User mode enabled
 
             m.d.sync += [
-                # TODO check that these registers are read-only
                 self.csr.misa.read.eq(misa),
                 self.csr.mhartid.read.eq(0),   # ID 0 FOREVER.
                 self.csr.mimpid.read.eq(0),    # No implemented = 0

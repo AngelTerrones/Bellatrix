@@ -86,7 +86,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         self.end_addr   = configuration.getOption('icache', 'end_addr')
 
         self.f_pc  = Signal(32)  # input
-        self.flush = Signal()  # input
+        self.flush = Signal()    # input
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
