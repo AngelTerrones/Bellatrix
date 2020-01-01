@@ -7,29 +7,29 @@ from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
 from nmigen.lib.fifo import SyncFIFOBuffered
+from nmigen.build import Platform
 from .isa import Funct3
 from .wishbone import Arbiter
 from .wishbone import CycleType
 from .wishbone import wishbone_layout
 from .cache import Cache
+from .configuration.configuration import Configuration
 
 
 class DataFormat(Elaboratable):
-    def __init__(self):
-        # inputs
-        self.x_funct3     = Signal(3)
-        self.x_offset     = Signal(2)
-        self.m_offset     = Signal(2)
-        self.x_store_data = Signal(32)  # raw data to store
-        self.m_data_r     = Signal(32)  # raw data from load
-        self.m_funct3     = Signal(3)
-        # outputs
-        self.x_byte_sel   = Signal(4)
-        self.x_data_w     = Signal(32)  # formatted data to bus
-        self.x_misaligned = Signal()
-        self.m_load_data  = Signal(32)  # formatted data to pipeline
+    def __init__(self) -> None:
+        self.x_funct3     = Signal(3)   # inputs
+        self.x_offset     = Signal(2)   # inputs
+        self.m_offset     = Signal(2)   # inputs
+        self.x_store_data = Signal(32)  # inputs  (raw data to store)
+        self.m_data_r     = Signal(32)  # inputs  (raw data from load)
+        self.m_funct3     = Signal(3)   # inputs
+        self.x_byte_sel   = Signal(4)   # outputs
+        self.x_data_w     = Signal(32)  # outputs (formatted data to bus)
+        self.x_misaligned = Signal()    # outputs
+        self.m_load_data  = Signal(32)  # outputs (formatted data to pipeline)
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         # create the byte selector
@@ -82,27 +82,27 @@ class DataFormat(Elaboratable):
 
 
 class LSUInterface:
-    def __init__(self):
-        # exceptions. Misaligned exception detected in X stage
+    def __init__(self) -> None:
+        # Misaligned exception detected in X stage
         self.dport         = Record(wishbone_layout)
-        self.x_addr        = Signal(32)
-        self.x_data_w      = Signal(32)
-        self.x_store       = Signal()
-        self.x_load        = Signal()
-        self.x_byte_sel    = Signal(4)
-        self.x_valid       = Signal()
-        self.x_stall       = Signal()
-        self.m_valid       = Signal()
-        self.m_stall       = Signal()
-        self.m_load_data   = Signal(32)
-        self.m_busy        = Signal()
-        self.m_load_error  = Signal()
-        self.m_store_error = Signal()
-        self.m_badaddr     = Signal(32)
+        self.x_addr        = Signal(32)  # input
+        self.x_data_w      = Signal(32)  # input
+        self.x_store       = Signal()    # input
+        self.x_load        = Signal()    # input
+        self.x_byte_sel    = Signal(4)   # input
+        self.x_valid       = Signal()    # input
+        self.x_stall       = Signal()    # input
+        self.m_valid       = Signal()    # input
+        self.m_stall       = Signal()    # input
+        self.m_load_data   = Signal(32)  # output
+        self.m_busy        = Signal()    # output
+        self.m_load_error  = Signal()    # output
+        self.m_store_error = Signal()    # output
+        self.m_badaddr     = Signal(32)  # output
 
 
 class BasicLSU(LSUInterface, Elaboratable):
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         op = Signal()
@@ -151,7 +151,7 @@ class BasicLSU(LSUInterface, Elaboratable):
 
 
 class CachedLSU(LSUInterface, Elaboratable):
-    def __init__(self, configuration):
+    def __init__(self, configuration: Configuration) -> None:
         super().__init__()
 
         self.nlines     = configuration.getOption('dcache', 'nlines')
@@ -160,13 +160,13 @@ class CachedLSU(LSUInterface, Elaboratable):
         self.start_addr = configuration.getOption('dcache', 'start_addr')
         self.end_addr   = configuration.getOption('dcache', 'end_addr')
 
-        self.x_fence_i = Signal()
-        self.x_busy    = Signal()
-        self.m_addr    = Signal(32)
-        self.m_load    = Signal()
-        self.m_store   = Signal()
+        self.x_fence_i = Signal()    # input
+        self.x_busy    = Signal()    # input
+        self.m_addr    = Signal(32)  # input
+        self.m_load    = Signal()    # input
+        self.m_store   = Signal()    # input
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         wbuffer_layout = [

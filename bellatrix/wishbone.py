@@ -5,6 +5,8 @@ from nmigen import Elaboratable
 from nmigen.hdl.rec import DIR_FANIN
 from nmigen.hdl.rec import DIR_FANOUT
 from nmigen.lib.coding import PriorityEncoder
+from nmigen.build import Platform
+from typing import Dict
 
 
 class CycleType:
@@ -30,12 +32,11 @@ wishbone_layout = [
 
 
 class Arbiter(Elaboratable):
-    def __init__(self):
+    def __init__(self) -> None:
         self.bus = Record(wishbone_layout)
+        self._ports: Dict[int, Record] = dict()
 
-        self._ports = dict()
-
-    def add_port(self, priority):
+    def add_port(self, priority: int) -> Record:
         # check if the priority is a number
         if not isinstance(priority, int) or priority < 0:
             raise TypeError('Priority must be a positive integer: {}'.format(priority))
@@ -46,7 +47,7 @@ class Arbiter(Elaboratable):
         port = self._ports[priority] = Record(wishbone_layout)
         return port
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         ports  = [port for prio, port in sorted(self._ports.items())]  # sort port for priority

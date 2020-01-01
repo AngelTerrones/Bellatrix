@@ -4,6 +4,7 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Memory
 from nmigen import Elaboratable
+from nmigen.build import Platform
 from .csr import CSRFile
 from .stage import Stage
 from .adder import AdderUnit
@@ -30,18 +31,19 @@ from .configuration import configuration as cfg
 
 
 class Bellatrix(Elaboratable):
-    def __init__(self, configuration):
+    def __init__(self, configuration: cfg.Configuration) -> None:
         if not isinstance(configuration, cfg.Configuration):
             raise TypeError('Invalid data type for configuration. Must be a "Configuration" type')
 
         self.configuration      = configuration
+        # IO
         self.iport              = Record(wishbone_layout)
         self.dport              = Record(wishbone_layout)
         self.external_interrupt = Signal()
         self.timer_interrupt    = Signal()
         self.software_interrupt = Signal()
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         cpu = Module()
         # ----------------------------------------------------------------------
         # create the pipeline stages
@@ -425,8 +427,7 @@ class Bellatrix(Elaboratable):
             exception.m_ls_misalign.eq(m.endpoint_a.result),
             exception.m_load_store_badaddr.eq(lsu.m_badaddr),
             exception.m_store.eq(m.endpoint_a.store),
-            exception.m_valid.eq(m.valid),
-            exception.m_stall.eq(m.stall)
+            exception.m_valid.eq(m.valid)
         ]
 
         m.add_stall_source(m.valid & lsu.m_busy)

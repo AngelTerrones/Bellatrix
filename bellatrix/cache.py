@@ -10,11 +10,19 @@ from nmigen import Memory
 from nmigen import Elaboratable
 from nmigen.lib.coding import Encoder
 from nmigen.utils import log2_int
+from nmigen.build import Platform
 
 
 class Cache(Elaboratable):
-    def __init__(self, nlines, nwords, nways, start_addr=0, end_addr=2**32, enable_write=True):
-        # enable_rite = data cache
+    def __init__(self,
+                 nlines: int,  # number of lines
+                 nwords: int,  # number of words x line x way
+                 nways: int,  # number of ways
+                 start_addr: int = 0,  # start of cacheable region
+                 end_addr: int = 2**32,  # end of cacheable region
+                 enable_write: bool = True  # enable writes to cache
+                 ) -> None:
+        # enable write -> data cache
         if nlines == 0 or (nlines & (nlines - 1)):
             raise ValueError(f'nlines must be a power of 2: {nlines}')
         if nwords not in (4, 8, 16):
@@ -41,6 +49,8 @@ class Cache(Elaboratable):
         if (extra_bits != 0):
             pc_layout.append(('unused', extra_bits))
 
+        # -------------------------------------------------------------------------
+        # IO
         self.s1_address = Record(pc_layout)
         self.s1_flush   = Signal()
         self.s1_valid   = Signal()
@@ -69,11 +79,12 @@ class Cache(Elaboratable):
         self.access_cnt = Signal(40)
         self.miss_cnt   = Signal(40)
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         # -------------------------------------------------------------------------
         # Performance counter
+        # TODO: connect to CSR's performance counter
         with m.If(~self.s1_stall & self.s1_valid & self.s1_access):
             m.d.sync += self.access_cnt.eq(self.access_cnt + 1)
         with m.If(self.s2_valid & self.s2_miss & ~self.bus_valid & self.s2_access):

@@ -2,22 +2,21 @@ from nmigen import Cat
 from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
+from nmigen.build import Platform
 
 
 class AdderUnit(Elaboratable):
-    def __init__(self):
-        # inputs
-        self.sub  = Signal()
-        self.dat1 = Signal(32)
-        self.dat2 = Signal(32)
-        # outputs
-        self.result   = Signal(32)
-        self.carry    = Signal()
-        self.overflow = Signal()
+    def __init__(self) -> None:
+        self.sub      = Signal()    # input
+        self.dat1     = Signal(32)  # input
+        self.dat2     = Signal(32)  # input
+        self.result   = Signal(32)  # output
+        self.carry    = Signal()    # output
+        self.overflow = Signal()    # output
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
-        # http://teaching.idallen.com/cst8214/08w/notes/overflow.txt
+        # From: http://teaching.idallen.com/cst8214/08w/notes/overflow.txt
         with m.If(self.sub):
             m.d.comb += [
                 Cat(self.result, self.carry).eq(self.dat1 - self.dat2),
