@@ -14,7 +14,7 @@ Layout = List[Tuple[str, int]]
 
 
 class _Endpoint(Record):
-    def __init__(self, layout: Layout, direction: Direction) -> None:
+    def __init__(self, layout: Layout, direction: Direction, name: str) -> None:
         if direction not in (DIR_FANIN, DIR_FANOUT):
             raise ValueError('Invalid direction for the endpoint. Valid values: {}'.format((DIR_FANIN, DIR_FANOUT)))
 
@@ -32,11 +32,11 @@ class _Endpoint(Record):
         for item in layout:
             full_layout.append(item + (direction,))  # generate new layout, adding direction to each pin
 
-        super().__init__(full_layout, src_loc_at=2)
+        super().__init__(full_layout, name=name)
 
 
 class Stage(Elaboratable):
-    def __init__(self, ep_a_layout: Optional[Layout], ep_b_layout: Optional[Layout]) -> None:
+    def __init__(self, name: str, ep_a_layout: Optional[Layout], ep_b_layout: Optional[Layout]) -> None:
         self.kill           = Signal()  # output
         self.stall          = Signal()  # output
         self.valid          = Signal()  # output
@@ -45,9 +45,9 @@ class Stage(Elaboratable):
         if ep_a_layout is None and ep_b_layout is None:
             raise ValueError("Empty endpoint layout. Abort")
         if ep_a_layout is not None:
-            self.endpoint_a = _Endpoint(ep_a_layout, DIR_FANIN)
+            self.endpoint_a = _Endpoint(ep_a_layout, DIR_FANIN, name=name + '_a')
         if ep_b_layout is not None:
-            self.endpoint_b = _Endpoint(ep_b_layout, DIR_FANOUT)
+            self.endpoint_b = _Endpoint(ep_b_layout, DIR_FANOUT, name=name + '_b')
 
         self._kill_sources: List[Signal]  = []
         self._stall_sources: List[Signal] = []

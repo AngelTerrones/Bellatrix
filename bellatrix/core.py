@@ -46,12 +46,12 @@ class Bellatrix(Elaboratable):
         cpu = Module()
         # ----------------------------------------------------------------------
         # create the pipeline stages
-        a = cpu.submodules.a = Stage(None,       _af_layout)
-        f = cpu.submodules.f = Stage(_af_layout, _fd_layout)
-        d = cpu.submodules.d = Stage(_fd_layout, _dx_layout)
-        x = cpu.submodules.x = Stage(_dx_layout, _xm_layout)
-        m = cpu.submodules.m = Stage(_xm_layout, _mw_layout)
-        w = cpu.submodules.w = Stage(_mw_layout, None)
+        a = cpu.submodules.a = Stage('A', None,       _af_layout)
+        f = cpu.submodules.f = Stage('F', _af_layout, _fd_layout)
+        d = cpu.submodules.d = Stage('D', _fd_layout, _dx_layout)
+        x = cpu.submodules.x = Stage('X', _dx_layout, _xm_layout)
+        m = cpu.submodules.m = Stage('M', _xm_layout, _mw_layout)
+        w = cpu.submodules.w = Stage('W', _mw_layout, None)
         # ----------------------------------------------------------------------
         # connect the stages
         cpu.d.comb += [
