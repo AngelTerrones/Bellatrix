@@ -38,8 +38,8 @@ class CSR:
         self.name = name
         self.mask = Const(mask)  # using the same mask for read and write operations
         # IO
-        self.read  = Record(fields, name=self.name)
-        self.write = Record(fields, name=self.name)
+        self.read  = Record(fields, name=self.name + '_r')
+        self.write = Record(fields, name=self.name + '_w')
         self.we    = Signal()
 
 

@@ -100,7 +100,7 @@ class Cache(Elaboratable):
         if self.enable_write:
             way_layout.append(('sel_we',   1))
 
-        ways     = Array(Record(way_layout) for _way in range(self.nways))
+        ways     = Array(Record(way_layout, name='way_idx{}'.format(_way)) for _way in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)
 
         # Check hit/miss
