@@ -91,9 +91,7 @@ class BranchPredictor(Elaboratable):
             bht_wp.data.eq(pstate_next),
             bht_wp.en.eq(self.m_update),
 
-            m_pc.eq(self.m_pc),
-
-            pstate_next.eq(0)
+            m_pc.eq(self.m_pc)
         ]
         with m.Switch(Cat(self.m_prediction_state, self.m_take_jmp_branch)):
             with m.Case(0b000, 0b001):
