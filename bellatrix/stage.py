@@ -37,10 +37,10 @@ class _Endpoint(Record):
 
 class Stage(Elaboratable):
     def __init__(self, name: str, ep_a_layout: Optional[Layout], ep_b_layout: Optional[Layout]) -> None:
-        self.kill           = Signal()  # output
-        self.stall          = Signal()  # output
-        self.valid          = Signal()  # output
-        self.is_instruction = Signal()  # output
+        self.kill           = Signal(name=name + '_kill')  # output
+        self.stall          = Signal(name=name + '_stall')  # output
+        self.valid          = Signal(name=name + '_valid')  # output
+        self.is_instruction = Signal(name=name + '_is_instruction')  # output
 
         if ep_a_layout is None and ep_b_layout is None:
             raise ValueError("Empty endpoint layout. Abort")
