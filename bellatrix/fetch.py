@@ -1,20 +1,19 @@
 from nmigen import Mux
 from nmigen import Module
-from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
 from nmigen.build import Platform
 from .wishbone import Arbiter
 from .wishbone import CycleType
-from .wishbone import wishbone_layout
+from .wishbone import Wishbone
 from .cache import Cache
 from .configuration.configuration import Configuration
 
 
 class FetchUnitInterface:
     def __init__(self) -> None:
-        self.iport         = Record(wishbone_layout)
+        self.iport         = Wishbone(name='iport')
         self.a_pc          = Signal(32)  # input
         self.a_stall       = Signal()    # input. (needed because the unit uses the pc@address stage)
         self.a_valid       = Signal()    # input. (needed because the unit uses the pc@address stage)

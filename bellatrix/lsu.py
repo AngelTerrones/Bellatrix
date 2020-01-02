@@ -11,7 +11,7 @@ from nmigen.build import Platform
 from .isa import Funct3
 from .wishbone import Arbiter
 from .wishbone import CycleType
-from .wishbone import wishbone_layout
+from .wishbone import Wishbone
 from .cache import Cache
 from .configuration.configuration import Configuration
 
@@ -84,7 +84,7 @@ class DataFormat(Elaboratable):
 class LSUInterface:
     def __init__(self) -> None:
         # Misaligned exception detected in X stage
-        self.dport         = Record(wishbone_layout)
+        self.dport         = Wishbone(name='dport')
         self.x_addr        = Signal(32)  # input
         self.x_data_w      = Signal(32)  # input
         self.x_store       = Signal()    # input

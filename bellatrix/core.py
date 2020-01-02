@@ -1,7 +1,6 @@
 from nmigen import Mux
 from nmigen import Signal
 from nmigen import Module
-from nmigen import Record
 from nmigen import Memory
 from nmigen import Elaboratable
 from nmigen.build import Platform
@@ -22,7 +21,7 @@ from .layout import _dx_layout
 from .layout import _xm_layout
 from .layout import _mw_layout
 from .exception import ExceptionUnit
-from .wishbone import wishbone_layout
+from .wishbone import Wishbone
 from .decoder import DecoderUnit
 from .multiplier import Multiplier
 from .divider import Divider
@@ -37,11 +36,11 @@ class Bellatrix(Elaboratable):
 
         self.configuration      = configuration
         # IO
-        self.iport              = Record(wishbone_layout)
-        self.dport              = Record(wishbone_layout)
-        self.external_interrupt = Signal()
-        self.timer_interrupt    = Signal()
-        self.software_interrupt = Signal()
+        self.iport              = Wishbone(name='iport')
+        self.dport              = Wishbone(name='dport')
+        self.external_interrupt = Signal()  # input
+        self.timer_interrupt    = Signal()  # input
+        self.software_interrupt = Signal()  # input
 
     def elaborate(self, platform: Platform) -> Module:
         cpu = Module()

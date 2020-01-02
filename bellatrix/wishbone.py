@@ -31,9 +31,21 @@ wishbone_layout = [
 ]
 
 
+class Wishbone(Record):
+    def __init__(self, name=None) -> None:
+        super().__init__(wishbone_layout, name=name)
+        # resetless
+        self.addr.reset_less  = True
+        self.dat_w.reset_less = True
+        self.sel.reset_less   = True
+        self.we.reset_less    = True
+        self.cti.reset_less   = True
+        self.bte.reset_less   = True
+
+
 class Arbiter(Elaboratable):
     def __init__(self) -> None:
-        self.bus = Record(wishbone_layout)
+        self.bus = Wishbone(name='arbiter_s_bus')
         self._ports: Dict[int, Record] = dict()
 
     def add_port(self, priority: int) -> Record:
@@ -44,7 +56,7 @@ class Arbiter(Elaboratable):
         if priority in self._ports:
             raise ValueError('Duplicated priority: {}'.format(priority))
 
-        port = self._ports[priority] = Record(wishbone_layout)
+        port = self._ports[priority] = Wishbone(name='arbiter_m{}'.format(priority))
         return port
 
     def elaborate(self, platform: Platform) -> Module:
