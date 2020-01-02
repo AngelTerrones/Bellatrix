@@ -54,6 +54,11 @@ int CORETB::SimulateCore(const std::string &progfile, const unsigned long max_ti
                 m_end_signature   = getSymbol(progfile.data(), "end_signature");
         }
         Reset();
+        // Run for 7 cycles, reset
+        for(auto i= 0; i < 7; i++)
+                Tick();
+        Reset();
+
         while ((getTime() <= max_time || notimeout) && !Verilated::gotFinish() && !quit) {
                 Tick();
                 if (CheckTOHOST(ok))
