@@ -5,6 +5,7 @@ from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.build import Platform
 from .isa import CSRAccess
+from .isa import PrivMode
 from typing import List, Tuple, Dict
 
 
@@ -50,7 +51,7 @@ class CSRFile(Elaboratable):
         self._ports: List[Record]     = []
         self._csr_map: Dict[int, CSR] = dict()
         # IO
-        self.privmode                 = Signal(2)  # output
+        self.privmode                 = Signal(PrivMode)  # output
         self.invalid                  = Signal()   # input
 
     def add_csr_from_list(self, csr_list: List[CSR]) -> None:

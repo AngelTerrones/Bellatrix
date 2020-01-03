@@ -7,7 +7,7 @@ from .isa import Funct3
 
 class LogicUnit(Elaboratable):
     def __init__(self) -> None:
-        self.op     = Signal(3)   # Input
+        self.op     = Signal(Funct3)  # Input
         self.dat1   = Signal(32)  # Input
         self.dat2   = Signal(32)  # Input
         self.result = Signal(32)  # Output

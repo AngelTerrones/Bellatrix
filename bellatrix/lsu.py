@@ -18,12 +18,12 @@ from .configuration.configuration import Configuration
 
 class DataFormat(Elaboratable):
     def __init__(self) -> None:
-        self.x_funct3     = Signal(3)   # inputs
+        self.x_funct3     = Signal(Funct3)   # inputs
         self.x_offset     = Signal(2)   # inputs
         self.m_offset     = Signal(2)   # inputs
         self.x_store_data = Signal(32)  # inputs  (raw data to store)
         self.m_data_r     = Signal(32)  # inputs  (raw data from load)
-        self.m_funct3     = Signal(3)   # inputs
+        self.m_funct3     = Signal(Funct3)   # inputs
         self.x_byte_sel   = Signal(4)   # outputs
         self.x_data_w     = Signal(32)  # outputs (formatted data to bus)
         self.x_misaligned = Signal()    # outputs

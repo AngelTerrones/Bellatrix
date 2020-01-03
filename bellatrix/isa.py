@@ -1,4 +1,5 @@
 from enum import Enum
+from enum import IntEnum
 
 """
 Unpriviledge ISA RV32IM v2.1
@@ -6,7 +7,7 @@ Priviledge Arquitecture v1.11
 """
 
 
-class Opcode:
+class Opcode(IntEnum):
     LUI    = 0b0110111
     AUIPC  = 0b0010111
     JAL    = 0b1101111
@@ -20,24 +21,24 @@ class Opcode:
     SYSTEM = 0b1110011
 
 
-class Funct3:
+class Funct3(IntEnum):
     BEQ  = B  = ADD  = FENCE  = PRIV   = MUL    = 0b000
     BNE  = H  = SLL  = FENCEI = CSRRW  = MULH   = 0b001
-    _    = W  = SLT  = _      = CSRRS  = MULHSU = 0b010
-    _    = _  = SLTU = _      = CSRRC  = MULHU  = 0b011
-    BLT  = BU = XOR  = _      = _      = DIV    = 0b100
-    BGE  = HU = SR   = _      = CSRRWI = DIVU   = 0b101
-    BLTU = _  = OR   = _      = CSRRSI = REM    = 0b110
-    BGEU = _  = AND  = _      = CSRRCI = REMU   = 0b111
+    _0   = W  = SLT  = _1     = CSRRS  = MULHSU = 0b010
+    _2   = _3 = SLTU = _4     = CSRRC  = MULHU  = 0b011
+    BLT  = BU = XOR  = _5     = _6     = DIV    = 0b100
+    BGE  = HU = SR   = _7     = CSRRWI = DIVU   = 0b101
+    BLTU = _8 = OR   = _9     = CSRRSI = REM    = 0b110
+    BGEU = _a = AND  = _b     = CSRRCI = REMU   = 0b111
 
 
-class Funct7:
+class Funct7(IntEnum):
     SRL = ADD = 0b0000000
     SRA = SUB = 0b0100000
     MULDIV    = 0b0000001
 
 
-class Funct12:
+class Funct12(IntEnum):
     ECALL  = 0b000000000000
     EBREAK = 0b000000000001
     URET   = 0b000000000010
@@ -45,7 +46,7 @@ class Funct12:
     MRET   = 0b001100000010
 
 
-class CSRIndex:
+class CSRIndex(IntEnum):
     MVENDORID  = 0xF11
     MARCHID    = 0xF12
     MIMPID     = 0xF13
@@ -73,14 +74,9 @@ class CSRIndex:
     INSTRETH   = 0xC82
 
 
-class CSRMode:
-    RW  = 0
-    SET = 1
-    CLR = 2
-    RO  = 3
-
-
-class ExceptionCause:
+class ExceptionCause(IntEnum):
+    MAX_NUM                     = 16
+    # Exceptions
     E_INST_ADDR_MISALIGNED      = 0
     E_INST_ACCESS_FAULT         = 1
     E_ILLEGAL_INST              = 2
@@ -107,7 +103,7 @@ class ExceptionCause:
     I_M_EXTERNAL                = 11
 
 
-class PrivMode:
+class PrivMode(IntEnum):
     User       = 0
     Supervisor = 1
     Machine    = 3

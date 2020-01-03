@@ -7,7 +7,7 @@ from .isa import Funct3
 
 class CompareUnit(Elaboratable):
     def __init__(self) -> None:
-        self.op       = Signal(3)  # Input
+        self.op       = Signal(Funct3)  # Input
         self.zero     = Signal()   # Input
         self.negative = Signal()   # Input
         self.overflow = Signal()   # Input

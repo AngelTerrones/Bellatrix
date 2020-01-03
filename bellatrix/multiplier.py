@@ -11,7 +11,7 @@ from .isa import Funct3
 
 class Multiplier(Elaboratable):
     def __init__(self) -> None:
-        self.op     = Signal(3)   # input
+        self.op     = Signal(Funct3)   # input
         self.dat1   = Signal(32)  # input
         self.dat2   = Signal(32)  # input
         self.valid  = Signal()    # input

@@ -83,14 +83,14 @@ class ExceptionUnit(Elaboratable):
         self.m_store              = Signal()    # input
         self.m_valid              = Signal()    # input
         self.m_exception          = Signal()    # output
-        self.m_privmode           = Signal(2)   # output
+        self.m_privmode           = Signal(PrivMode)   # output
         if self.extra_csr:
             self.w_retire = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        privmode = Signal(2)
+        privmode = Signal(PrivMode)
         privmode.reset = PrivMode.Machine  # default mode is Machine
 
         m.d.comb += self.m_privmode.eq(privmode)
@@ -116,7 +116,7 @@ class ExceptionUnit(Elaboratable):
                 self.csr.mvendorid.read.eq(0)  # No implemented = 0
             ]
 
-        traps = m.submodules.traps = PriorityEncoder(16)
+        traps = m.submodules.traps = PriorityEncoder(ExceptionCause.MAX_NUM)
         m.d.comb += [
             traps.i[ExceptionCause.E_INST_ADDR_MISALIGNED].eq(self.m_fetch_misalign),
             traps.i[ExceptionCause.E_INST_ACCESS_FAULT].eq(self.m_fetch_error),
@@ -129,7 +129,7 @@ class ExceptionUnit(Elaboratable):
             traps.i[ExceptionCause.E_ECALL_FROM_M].eq(self.m_ecall)
         ]
 
-        interrupts = m.submodules.interrupts = PriorityEncoder(16)
+        interrupts = m.submodules.interrupts = PriorityEncoder(ExceptionCause.MAX_NUM)
         m.d.comb += [
             interrupts.i[ExceptionCause.I_M_SOFTWARE].eq(self.csr.mip.read.msip & self.csr.mie.read.msie),
             interrupts.i[ExceptionCause.I_M_TIMER].eq(self.csr.mip.read.mtip & self.csr.mie.read.mtie),

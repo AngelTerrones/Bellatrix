@@ -12,9 +12,10 @@ from .configuration.configuration import Configuration
 from functools import reduce
 from operator import or_
 from typing import Tuple, List, Optional
+from enum import IntEnum
 
 
-class Type:
+class Type(IntEnum):
     R = 0
     I = 1  # noqa
     S = 2
@@ -50,7 +51,7 @@ class DecoderUnit(Elaboratable):
         self.compare         = Signal()    # output
         self.csr             = Signal()    # output
         self.csr_we          = Signal()    # output
-        self.funct3          = Signal(3)   # output
+        self.funct3          = Signal(Funct3)   # output
         self.needed_in_x     = Signal()    # output
         self.needed_in_m     = Signal()    # output
         self.ecall           = Signal()    # output
@@ -60,22 +61,22 @@ class DecoderUnit(Elaboratable):
         self.illegal         = Signal()    # output
         self.multiply        = Signal()    # output
         self.divide          = Signal()    # output
-        self.privmode        = Signal(2)   # output
+        self.privmode        = Signal(PrivMode)   # output
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        opcode      = Signal(7)
-        funct3      = Signal(3)
-        funct7      = Signal(7)
-        funct12     = Signal(12)
+        opcode      = Signal(Opcode)
+        funct3      = Signal(Funct3)
+        funct7      = Signal(Funct7)
+        funct12     = Signal(Funct12)
         iimm12      = Signal((12, True))
         simm12      = Signal((12, True))
         bimm12      = Signal((13, True))
         uimm20      = Signal(20)
         jimm20      = Signal((21, True))
         fence       = Signal()
-        itype       = Signal(max=Type.J)
+        itype       = Signal(Type)
         instruction = self.instruction
 
         with m.Switch(opcode):
