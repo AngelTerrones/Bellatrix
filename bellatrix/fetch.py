@@ -8,6 +8,7 @@ from .wishbone import Arbiter
 from .wishbone import CycleType
 from .wishbone import Wishbone
 from .cache import Cache
+from .cache import SnoopPort
 from .configuration.configuration import Configuration
 
 
@@ -86,6 +87,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         self.f_pc  = Signal(32)  # input
         self.flush = Signal()    # input
+        self.snoop = SnoopPort(name='cfu_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -113,6 +115,12 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         # connect IO: cache
         m.d.comb += [
+            icache.snoop.connect(self.snoop),
+            icache.self_snoop.addr.eq(0),  # Self snoop is useless for I$. Hardwire to zero
+            icache.self_snoop.we.eq(0),
+            icache.self_snoop.valid.eq(0),
+            icache.self_snoop.ack.eq(0),
+
             icache.s1_address.eq(self.a_pc),
             icache.s1_flush.eq(self.flush),
             icache.s1_valid.eq(self.a_valid & a_use_cache),

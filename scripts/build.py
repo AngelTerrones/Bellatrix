@@ -49,7 +49,20 @@ def main():
         cpu.timer_interrupt,
         cpu.software_interrupt
     ]
-
+    if(configuration.getOption('icache',  'enable')):
+        ports += [
+            cpu.i_snoop.addr,
+            cpu.i_snoop.we,
+            cpu.i_snoop.valid,
+            cpu.i_snoop.ack,
+        ]
+    if(configuration.getOption('dcache',  'enable')):
+        ports += [
+            cpu.d_snoop.addr,
+            cpu.d_snoop.we,
+            cpu.d_snoop.valid,
+            cpu.d_snoop.ack,
+        ]
     # run
     cli.main_runner(parser, args, cpu, name='bellatrix_core', ports=ports)
 

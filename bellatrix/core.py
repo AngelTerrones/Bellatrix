@@ -27,6 +27,7 @@ from .multiplier import Multiplier
 from .divider import Divider
 from .predictor import BranchPredictor
 from .configuration import configuration as cfg
+from .cache import SnoopPort
 
 
 class Bellatrix(Elaboratable):
@@ -41,6 +42,10 @@ class Bellatrix(Elaboratable):
         self.external_interrupt = Signal()  # input
         self.timer_interrupt    = Signal()  # input
         self.software_interrupt = Signal()  # input
+        if (self.configuration.getOption('icache',  'enable')):
+            self.i_snoop        = SnoopPort(name='i_snoop')
+        if (self.configuration.getOption('dcache',  'enable')):
+            self.d_snoop        = SnoopPort(name='d_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         cpu = Module()
@@ -73,10 +78,12 @@ class Bellatrix(Elaboratable):
         csr       = cpu.submodules.csr       = CSRFile()
         if (self.configuration.getOption('icache',  'enable')):
             fetch = cpu.submodules.fetch = CachedFetchUnit(self.configuration)
+            cpu.d.comb += fetch.snoop.connect(self.i_snoop)
         else:
             fetch = cpu.submodules.fetch = BasicFetchUnit()
         if (self.configuration.getOption('dcache',  'enable')):
             lsu = cpu.submodules.lsu = CachedLSU(self.configuration)
+            cpu.d.comb += lsu.snoop.connect(self.d_snoop)
         else:
             lsu = cpu.submodules.lsu = BasicLSU()
         if self.configuration.getOption('isa', 'enable_rv32m'):
@@ -170,6 +177,9 @@ class Bellatrix(Elaboratable):
             fetch.f_valid.eq(f.valid)
         ]
 
+        # If the pipeline requires a flush and the fetch unit is busy
+        # latch the kill signal, so the other stages does not wait for
+        # a free FU
         f_kill_r = Signal()
 
         with cpu.If(f.stall):
@@ -179,10 +189,9 @@ class Bellatrix(Elaboratable):
             cpu.d.sync += f_kill_r.eq(0)
 
         if (self.configuration.getOption('icache',  'enable')):
-            cpu.d.comb += [
-                fetch.flush.eq(x.endpoint_a.fence_i & x.valid & ~x.stall),
-                fetch.f_pc.eq(f.endpoint_a.pc)
-            ]
+            cpu.d.comb += fetch.f_pc.eq(f.endpoint_a.pc)
+            # TODO: create a (custom) CSR so we can flush the cache in software (?)
+            # fetch.flush.eq(x.endpoint_a.fence_i & x.valid & ~x.stall),
 
         f.add_kill_source(f_kill_r)
         f.add_stall_source(fetch.f_busy)
@@ -332,10 +341,9 @@ class Bellatrix(Elaboratable):
         if (self.configuration.getOption('dcache', 'enable')):
             cpu.d.comb += lsu.x_fence_i.eq(x.valid & x.endpoint_a.fence_i)
             x.add_stall_source(x.valid & x.endpoint_a.fence_i & m.valid & m.endpoint_a.store)
+            x.add_stall_source(x.valid & lsu.x_busy)
         if (self.configuration.getOption('isa', 'enable_rv32m')):
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
-        if (self.configuration.getOption('dcache', 'enable')):
-            x.add_stall_source(x.valid & lsu.x_busy)
         x.add_kill_source(exception.m_exception & m.valid)
         x.add_kill_source(m.endpoint_a.mret & m.valid)
         x.add_kill_source(m_kill_bj)
