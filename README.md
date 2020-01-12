@@ -42,7 +42,7 @@ See LICENSE file for full copyright and license information.
 - No FPU. Software-base floating point support (toolchain).
 - Support for Machine and User (optional) [privilege modes][2], version v1.11.
 - Support for external interrupts, as described in the [privilege mode manual][2].
-- [Wishbone B4][3] Bus Interface, in classic mode.
+- [Wishbone B4][3] Bus Interface, in classic standard mode.
 
 ## Project Details
 

@@ -6,26 +6,29 @@ from nmigen import Memory
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
+from nmigen.build import Platform
+from .configuration.configuration import Configuration
 
 
 class BranchPredictor(Elaboratable):
-    def __init__(self, configuration):
+    def __init__(self, configuration: Configuration) -> None:
         self.configuration = configuration
 
-        self.a_pc               = Signal(32)
-        self.a_stall            = Signal()
-        self.f_pc               = Signal(32)
-        self.f_prediction       = Signal()
-        self.f_prediction_state = Signal(2)
-        self.f_prediction_pc    = Signal(32)
-        self.m_prediction_state = Signal(2)
-        self.m_take_jmp_branch  = Signal()
-        self.m_pc               = Signal(32)
-        self.m_target_pc        = Signal(32)
-        self.m_update           = Signal()
+        self.a_pc               = Signal(32)  # input
+        self.a_stall            = Signal()    # input
+        self.f_pc               = Signal(32)  # input
+        self.f_prediction       = Signal()    # output
+        self.f_prediction_state = Signal(2)   # output
+        self.f_prediction_pc    = Signal(32)  # output
+        self.m_prediction_state = Signal(2)   # input
+        self.m_take_jmp_branch  = Signal()    # input
+        self.m_pc               = Signal(32)  # input
+        self.m_target_pc        = Signal(32)  # input
+        self.m_update           = Signal()    # input
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
+
         size = self.configuration.getOption('predictor', 'size')
         if size == 0 or (size & (size - 1)):
             raise ValueError(f'size must be a power of 2: {size}')
@@ -78,7 +81,7 @@ class BranchPredictor(Elaboratable):
             self.f_prediction_pc.eq(btb_r.target)
         ]
 
-        # update
+        # update the predictor
         m.d.comb += [
             btb_wp.addr.eq(m_pc.index),
             btb_wp.data.eq(Cat(self.m_target_pc, m_pc.tag, 1)),
@@ -88,11 +91,8 @@ class BranchPredictor(Elaboratable):
             bht_wp.data.eq(pstate_next),
             bht_wp.en.eq(self.m_update),
 
-            m_pc.eq(self.m_pc),
-
-            pstate_next.eq(0)
+            m_pc.eq(self.m_pc)
         ]
-
         with m.Switch(Cat(self.m_prediction_state, self.m_take_jmp_branch)):
             with m.Case(0b000, 0b001):
                 m.d.comb += pstate_next.eq(0b00)

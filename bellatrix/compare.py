@@ -1,19 +1,20 @@
 from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
+from nmigen.build import Platform
 from .isa import Funct3
 
 
 class CompareUnit(Elaboratable):
-    def __init__(self):
-        self.op       = Signal(3)
-        self.zero     = Signal()
-        self.negative = Signal()
-        self.overflow = Signal()
-        self.carry    = Signal()
-        self.cmp_ok   = Signal()
+    def __init__(self) -> None:
+        self.op       = Signal(Funct3)  # Input
+        self.zero     = Signal()   # Input
+        self.negative = Signal()   # Input
+        self.overflow = Signal()   # Input
+        self.carry    = Signal()   # Input
+        self.cmp_ok   = Signal()   # Output
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         with m.Switch(self.op):

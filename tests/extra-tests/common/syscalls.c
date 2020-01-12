@@ -79,8 +79,7 @@ ssize_t _write(int file, const void *ptr, size_t len) {
         magic_mem[3] = len;
         //
         tohost = (uintptr_t)magic_mem;
-        while (fromhost == 0)
-                ;
+        //while (fromhost == 0);
         fromhost = 0;
         //
         __sync_synchronize();

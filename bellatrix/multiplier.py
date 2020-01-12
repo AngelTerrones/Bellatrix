@@ -5,20 +5,21 @@ from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen import signed
+from nmigen.build import Platform
 from .isa import Funct3
 
 
 class Multiplier(Elaboratable):
-    def __init__(self):
-        self.op     = Signal(3)
-        self.dat1   = Signal(32)
-        self.dat2   = Signal(32)
-        self.result = Signal(32)
-        self.valid  = Signal()
-        self.ready  = Signal()
+    def __init__(self) -> None:
+        self.op     = Signal(Funct3)   # input
+        self.dat1   = Signal(32)  # input
+        self.dat2   = Signal(32)  # input
+        self.valid  = Signal()    # input
+        self.result = Signal(32)  # output
+        self.ready  = Signal()    # output
 
-    def elaborate(self, platform):
-        m = Module()
+    def elaborate(self, platform: Platform) -> Module:
+        m           = Module()
 
         a           = Signal(signed(33))
         b           = Signal(signed(33))
@@ -39,7 +40,7 @@ class Multiplier(Elaboratable):
             active.eq(Cat(self.valid & (active == 0), active)),
             low.eq(self.op == Funct3.MUL)
         ]
-
+        # ----------------------------------------------------------------------
         # fist state
         m.d.comb += [
             a_is_signed.eq(((self.op == Funct3.MULH) | (self.op == Funct3.MULHSU)) & self.dat1[-1]),
@@ -49,6 +50,7 @@ class Multiplier(Elaboratable):
             a.eq(Mux(a_is_signed, -Cat(self.dat1, 1), self.dat1)),
             b.eq(Mux(b_is_signed, -Cat(self.dat2, 1), self.dat2)),
         ]
+        # ----------------------------------------------------------------------
         # second state
         m.d.sync += [
             result_ll.eq(a[0:16] * b[0:16]),
@@ -56,10 +58,12 @@ class Multiplier(Elaboratable):
             result_hl.eq(a[16:33] * b[0:16]),
             result_hh.eq(a[16:33] * b[16:33])
         ]
+        # ----------------------------------------------------------------------
         # third state
         m.d.sync += [
             result_3.eq(Cat(result_ll, result_hh) + Cat(Repl(0, 16), (result_lh + result_hl)))
         ]
+        # ----------------------------------------------------------------------
         # fourth state
         m.d.sync += [
             result_4.eq(Mux(is_signed, -result_3, result_3)),

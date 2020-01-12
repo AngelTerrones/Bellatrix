@@ -10,11 +10,19 @@ from nmigen import Memory
 from nmigen import Elaboratable
 from nmigen.lib.coding import Encoder
 from nmigen.utils import log2_int
+from nmigen.build import Platform
 
 
 class Cache(Elaboratable):
-    def __init__(self, nlines, nwords, nways, start_addr=0, end_addr=2**32, enable_write=True):
-        # enable_rite = data cache
+    def __init__(self,
+                 nlines: int,  # number of lines
+                 nwords: int,  # number of words x line x way
+                 nways: int,  # number of ways
+                 start_addr: int = 0,  # start of cacheable region
+                 end_addr: int = 2**32,  # end of cacheable region
+                 enable_write: bool = True  # enable writes to cache
+                 ) -> None:
+        # enable write -> data cache
         if nlines == 0 or (nlines & (nlines - 1)):
             raise ValueError(f'nlines must be a power of 2: {nlines}')
         if nwords not in (4, 8, 16):
@@ -41,6 +49,8 @@ class Cache(Elaboratable):
         if (extra_bits != 0):
             pc_layout.append(('unused', extra_bits))
 
+        # -------------------------------------------------------------------------
+        # IO
         self.s1_address = Record(pc_layout)
         self.s1_flush   = Signal()
         self.s1_valid   = Signal()
@@ -69,11 +79,12 @@ class Cache(Elaboratable):
         self.access_cnt = Signal(40)
         self.miss_cnt   = Signal(40)
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         # -------------------------------------------------------------------------
         # Performance counter
+        # TODO: connect to CSR's performance counter
         with m.If(~self.s1_stall & self.s1_valid & self.s1_access):
             m.d.sync += self.access_cnt.eq(self.access_cnt + 1)
         with m.If(self.s2_valid & self.s2_miss & ~self.bus_valid & self.s2_access):
@@ -89,20 +100,8 @@ class Cache(Elaboratable):
         if self.enable_write:
             way_layout.append(('sel_we',   1))
 
-        ways     = Array(Record(way_layout) for _way in range(self.nways))
+        ways     = Array(Record(way_layout, name='way_idx{}'.format(_way)) for _way in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)
-
-        # set the LRU
-        if self.nways == 1:
-            # One way: LRU is useless
-            lru = Const(0)  # self.nlines
-        else:
-            # LRU es un vector de N bits, cada uno indicado el set a reemplazar
-            # como NWAY es máximo 2, cada LRU es de un bit
-            lru = Signal(self.nlines)
-            with m.If(self.bus_valid & self.bus_ack & self.bus_last):  # err ^ ack == 1
-                _lru = lru.bit_select(self.s2_address.line, 1)
-                m.d.sync += lru.bit_select(self.s2_address.line, 1).eq(~_lru)
 
         # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
@@ -113,6 +112,20 @@ class Cache(Elaboratable):
         if self.enable_write:
             # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
             m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we & self.s2_valid)
+
+        # set the LRU
+        if self.nways == 1:
+            # One way: LRU is useless
+            lru = Const(0)  # self.nlines
+        else:
+            # LRU es un vector de N bits, cada uno indicado el set a reemplazar
+            # como NWAY es máximo 2, cada LRU es de un bit
+            lru         = Signal(self.nlines)
+            _lru        = lru.bit_select(self.s2_address.line, 1)
+            write_ended = self.bus_valid & self.bus_ack & self.bus_last  # err ^ ack = = 1
+            access_hit  = ~self.s2_miss & self.s2_valid & (way_hit.o == _lru)
+            with m.If(write_ended | access_hit):
+                m.d.sync += _lru.eq(~_lru)
 
         # read data from the cache
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))

@@ -3,16 +3,21 @@ from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.lib.coding import PriorityEncoder
+from nmigen.build import Platform
 from .csr import CSR
 from .isa import CSRIndex
 from .isa import ExceptionCause
 from .isa import misa_layout, mstatus_layout, mie_layout, mtvec_layout
 from .isa import mepc_layout, mcause_layout, mip_layout, basic_layout
 from .isa import PrivMode
+from .configuration.configuration import Configuration
 
 
 class ExceptionCSR:
-    def __init__(self, extra_csr=False, user_mode=False):
+    def __init__(self,
+                 extra_csr: bool = False,  # Enable extra CSRs
+                 user_mode: bool = False   # Enable user-mode
+                 ) -> None:
         if extra_csr:
             self.misa      = CSR(CSRIndex.MISA, 'misa', misa_layout)
             self.mhartid   = CSR(CSRIndex.MHARTID, 'mhartid', basic_layout)
@@ -49,57 +54,55 @@ class ExceptionCSR:
 
 
 class ExceptionUnit(Elaboratable):
-    def __init__(self, configuration):
+    def __init__(self, configuration: Configuration) -> None:
         self.usermode  = configuration.getOption('isa', 'enable_user_mode')
         self.extra_csr = configuration.getOption('isa', 'enable_extra_csr')
         self.rv32m     = configuration.getOption('isa', 'enable_rv32m')
 
         self.csr = ExceptionCSR(extra_csr=self.extra_csr, user_mode=self.usermode)
 
-        self.external_interrupt   = Signal()
-        self.software_interrupt   = Signal()
-        self.timer_interrupt      = Signal()
-        self.m_fetch_misalign     = Signal()
-        self.m_fetch_error        = Signal()
-        self.m_illegal            = Signal()
-        self.m_load_misalign      = Signal()
-        self.m_load_error         = Signal()
-        self.m_store_misalign     = Signal()
-        self.m_store_error        = Signal()
-        self.m_ecall              = Signal()
-        self.m_ebreak             = Signal()
-        self.m_mret               = Signal()
-        self.m_pc                 = Signal(32)
-        self.m_instruction        = Signal(32)
-        self.m_fetch_badaddr      = Signal(32)
-        self.m_pc_misalign        = Signal(32)
-        self.m_ls_misalign        = Signal(32)
-        self.m_load_store_badaddr = Signal(32)
-        self.m_store              = Signal()
-        self.m_valid              = Signal()
-        self.m_stall              = Signal()
-        self.m_exception          = Signal()
-        self.m_privmode           = Signal(2)
+        self.external_interrupt   = Signal()    # input
+        self.software_interrupt   = Signal()    # input
+        self.timer_interrupt      = Signal()    # input
+        self.m_fetch_misalign     = Signal()    # input
+        self.m_fetch_error        = Signal()    # input
+        self.m_illegal            = Signal()    # input
+        self.m_load_misalign      = Signal()    # input
+        self.m_load_error         = Signal()    # input
+        self.m_store_misalign     = Signal()    # input
+        self.m_store_error        = Signal()    # input
+        self.m_ecall              = Signal()    # input
+        self.m_ebreak             = Signal()    # input
+        self.m_mret               = Signal()    # input
+        self.m_pc                 = Signal(32)  # input
+        self.m_instruction        = Signal(32)  # input
+        self.m_fetch_badaddr      = Signal(32)  # input
+        self.m_pc_misalign        = Signal(32)  # input
+        self.m_ls_misalign        = Signal(32)  # input
+        self.m_load_store_badaddr = Signal(32)  # input
+        self.m_store              = Signal()    # input
+        self.m_valid              = Signal()    # input
+        self.m_exception          = Signal()    # output
+        self.m_privmode           = Signal(PrivMode)   # output
         if self.extra_csr:
             self.w_retire = Signal()
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        privmode = Signal(2)
+        privmode = Signal(PrivMode)
         privmode.reset = PrivMode.Machine  # default mode is Machine
 
         m.d.comb += self.m_privmode.eq(privmode)
 
-        # Read/write behavior for all registers.
-        # maybe write this manually for each register?
+        # Read/write behavior for all registers
         for reg in self.csr.csr_list:
             with m.If(reg.we):
                 m.d.sync += reg.read.eq(reg.write)
 
         # constants (at least, the important ones)
         if self.extra_csr:
-            misa = 0x1 << 30 | (1 << (ord('i') - ord('a')))  # 32-bits processor. RV32IM
+            misa = 0x1 << 30 | (1 << (ord('i') - ord('a')))  # 32-bits processor. RV32I
             if self.rv32m:
                 misa |= 1 << (ord('m') - ord('a'))  # RV32M
             if self.usermode:
@@ -107,13 +110,13 @@ class ExceptionUnit(Elaboratable):
 
             m.d.sync += [
                 self.csr.misa.read.eq(misa),
-                self.csr.mhartid.read.eq(0),   # ID 0 FOREVER. TODO: make this read only
+                self.csr.mhartid.read.eq(0),   # ID 0 FOREVER.
                 self.csr.mimpid.read.eq(0),    # No implemented = 0
                 self.csr.marchid.read.eq(0),   # No implemented = 0
                 self.csr.mvendorid.read.eq(0)  # No implemented = 0
             ]
 
-        traps = m.submodules.traps = PriorityEncoder(16)
+        traps = m.submodules.traps = PriorityEncoder(ExceptionCause.MAX_NUM)
         m.d.comb += [
             traps.i[ExceptionCause.E_INST_ADDR_MISALIGNED].eq(self.m_fetch_misalign),
             traps.i[ExceptionCause.E_INST_ACCESS_FAULT].eq(self.m_fetch_error),
@@ -126,7 +129,7 @@ class ExceptionUnit(Elaboratable):
             traps.i[ExceptionCause.E_ECALL_FROM_M].eq(self.m_ecall)
         ]
 
-        interrupts = m.submodules.interrupts = PriorityEncoder(16)
+        interrupts = m.submodules.interrupts = PriorityEncoder(ExceptionCause.MAX_NUM)
         m.d.comb += [
             interrupts.i[ExceptionCause.I_M_SOFTWARE].eq(self.csr.mip.read.msip & self.csr.mie.read.msie),
             interrupts.i[ExceptionCause.I_M_TIMER].eq(self.csr.mip.read.mtip & self.csr.mie.read.mtie),

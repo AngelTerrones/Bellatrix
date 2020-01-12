@@ -37,10 +37,7 @@ CORETB::CORETB() : Testbench(TBFREQ, TBTS), m_exitCode(-1) {
 int CORETB::SimulateCore(const std::string &progfile, const unsigned long max_time, const std::string &s_signature) {
         bool ok        = false;
         bool notimeout = max_time == 0;
-        // Initial values
-        m_top->external_interrupt = 0;
-        m_top->timer_interrupt    = 0;
-        m_top->software_interrupt = 0;
+
         // -------------------------------------------------------------
         // Add trap handler to catch [Ctrl + C]
         // Configure the signal to abort (blocking) system calls
@@ -57,11 +54,15 @@ int CORETB::SimulateCore(const std::string &progfile, const unsigned long max_ti
                 m_end_signature   = getSymbol(progfile.data(), "end_signature");
         }
         Reset();
+        // Run for 7 cycles, reset
+        for(auto i= 0; i < 7; i++)
+                Tick();
+        Reset();
+
         while ((getTime() <= max_time || notimeout) && !Verilated::gotFinish() && !quit) {
                 Tick();
                 if (CheckTOHOST(ok))
                         break;
-                CheckInterrupts();
         }
         // -------------------------------------------------------------
         Tick();
@@ -109,14 +110,6 @@ bool CORETB::CheckTOHOST(bool &ok) {
                 }
         }
         return _exit;
-}
-// -----------------------------------------------------------------------------
-void CORETB::CheckInterrupts() {
-        svSetScope(svGetScopeFromName("TOP.top.memory")); // Set the scope before using DPI functions
-        //  Writing to XINT_X address will trigger X-type of interrupt.
-        m_top->external_interrupt = ram_v_dpi_read_word(XINT_E) != 0;
-        m_top->timer_interrupt    = ram_v_dpi_read_word(XINT_T) != 0;
-        m_top->software_interrupt = ram_v_dpi_read_word(XINT_S) != 0;
 }
 // -----------------------------------------------------------------------------
 void CORETB::SyscallPrint(const uint32_t base_addr) const {

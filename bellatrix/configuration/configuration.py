@@ -3,6 +3,7 @@
 import os
 import ast
 import configparser as cp
+from typing import Any
 
 
 class Configuration:
@@ -12,7 +13,7 @@ class Configuration:
     Args:
     - configFile: Name of the configuration file to load.
     """
-    def __init__(self, configFile):
+    def __init__(self, configFile: str) -> None:
         configFile = os.path.abspath(configFile)
         assert type(configFile) == str and len(configFile), "Please, indicate a valid name for the config file: {0}".format(configFile)
         assert os.path.isfile(configFile), "Configuration file does not exist. Please, indicate an existing file: {0}".format(configFile)
@@ -21,7 +22,7 @@ class Configuration:
         self.__config     = cp.ConfigParser()
         self.__dict       = {}
         try:
-            self.__config.optionxform = str
+            self.__config.optionxform = str  # type: ignore
             self.__config.read(configFile)
         except Exception:
             assert 0, "Unable to open the config file: {0}".format(configFile)
@@ -34,7 +35,7 @@ class Configuration:
             except Exception:
                 raise RuntimeError("Unable to parse configuration file: {0}".format(configFile))
 
-    def __getOptionsFromSection(self, section):
+    def __getOptionsFromSection(self, section: str) -> dict:
         """
         Extract al the options from the given section, and stores them in a dictionary.
         """
@@ -45,7 +46,7 @@ class Configuration:
             dict1[option] = ast.literal_eval(value)
         return dict1
 
-    def getOption(self, section, option, default=None):
+    def getOption(self, section: str, option: str, default: Any = None) -> Any:
         """
         Get a 'option' for the given 'section'.
 

@@ -4,20 +4,19 @@ from nmigen import Repl
 from nmigen import Signal
 from nmigen import Module
 from nmigen import Elaboratable
+from nmigen.build import Platform
 
 
 class ShifterUnit(Elaboratable):
-    def __init__(self):
-        # inputs
-        self.direction = Signal()   # 1: right. 0: left
-        self.sign_ext  = Signal()
-        self.shamt     = Signal(5)
-        self.dat       = Signal(32)
-        self.stall     = Signal()
-        # outputs
-        self.result = Signal(32)
+    def __init__(self) -> None:
+        self.direction = Signal()    # Input
+        self.sign_ext  = Signal()    # Input
+        self.shamt     = Signal(5)   # Input
+        self.dat       = Signal(32)  # Input
+        self.stall     = Signal()    # Input
+        self.result    = Signal(32)  # Output
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         sign_fill   = Signal()
@@ -28,6 +27,7 @@ class ShifterUnit(Elaboratable):
         shdata      = Signal(64)  # temp data
 
         # pre-invert the value, if needed
+        # Direction:  1 = right. 0 = left.
         m.d.comb += [
             operand.eq(Mux(self.direction, self.dat, self.dat[::-1])),
             sign_fill.eq(Mux(self.direction & self.sign_ext, self.dat[-1], 0)),

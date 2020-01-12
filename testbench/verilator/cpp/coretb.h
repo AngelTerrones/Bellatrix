@@ -28,7 +28,6 @@ public:
 private:
         uint32_t PrintExitMessage (const bool ok, const unsigned long max_time);
         bool     CheckTOHOST      (bool &ok);
-        void     CheckInterrupts  ();
         void     SyscallPrint     (const uint32_t base_addr) const;
         void     LoadMemory       (const std::string &progfile);
         void     DumpSignature    (const std::string &signature);

@@ -1,19 +1,18 @@
 from nmigen import Signal
 from nmigen import Module
 from nmigen import Elaboratable
+from nmigen.build import Platform
 from .isa import Funct3
 
 
 class LogicUnit(Elaboratable):
-    def __init__(self):
-        # inputs
-        self.op   = Signal(3)
-        self.dat1 = Signal(32)
-        self.dat2 = Signal(32)
-        # outputs
-        self.result = Signal(32)
+    def __init__(self) -> None:
+        self.op     = Signal(Funct3)  # Input
+        self.dat1   = Signal(32)  # Input
+        self.dat2   = Signal(32)  # Input
+        self.result = Signal(32)  # Output
 
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         with m.Switch(self.op):

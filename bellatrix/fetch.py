@@ -1,34 +1,32 @@
 from nmigen import Mux
 from nmigen import Module
-from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
+from nmigen.build import Platform
 from .wishbone import Arbiter
 from .wishbone import CycleType
-from .wishbone import wishbone_layout
+from .wishbone import Wishbone
 from .cache import Cache
+from .configuration.configuration import Configuration
 
 
 class FetchUnitInterface:
-    def __init__(self):
-        self.iport = Record(wishbone_layout)
-        # from address stage
-        self.a_pc   = Signal(32)
-        # control signals
-        self.a_stall = Signal()  # needed because the unit uses the pc@address stage
-        self.a_valid = Signal()  # needed because the unit uses the pc@address stage
-        self.f_stall = Signal()
-        self.f_valid = Signal()
-        self.f_busy  = Signal()
-        # to decode stage
-        self.f_instruction = Signal(32)
-        self.f_bus_error   = Signal()
-        self.f_badaddr     = Signal(32)
+    def __init__(self) -> None:
+        self.iport         = Wishbone(name='iport')
+        self.a_pc          = Signal(32)  # input
+        self.a_stall       = Signal()    # input. (needed because the unit uses the pc@address stage)
+        self.a_valid       = Signal()    # input. (needed because the unit uses the pc@address stage)
+        self.f_stall       = Signal()    # input
+        self.f_valid       = Signal()    # input
+        self.f_busy        = Signal()    # input
+        self.f_instruction = Signal(32)  # output
+        self.f_bus_error   = Signal()    # output
+        self.f_badaddr     = Signal(32)  # output
 
 
 class BasicFetchUnit(FetchUnitInterface, Elaboratable):
-    def elaborate(self, platform):
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         rdata = Signal.like(self.iport.dat_r)
@@ -77,11 +75,8 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
 
 
 class CachedFetchUnit(FetchUnitInterface, Elaboratable):
-    def __init__(self, configuration):
+    def __init__(self, configuration: Configuration) -> None:
         super().__init__()
-
-        self.f_pc  = Signal(32)
-        self.flush = Signal()
 
         self.nlines     = configuration.getOption('icache', 'nlines')
         self.nwords     = configuration.getOption('icache', 'nwords')
@@ -89,11 +84,17 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         self.start_addr = configuration.getOption('icache', 'start_addr')
         self.end_addr   = configuration.getOption('icache', 'end_addr')
 
-    def elaborate(self, platform):
+        self.f_pc  = Signal(32)  # input
+        self.flush = Signal()    # input
+
+    def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        icache  = m.submodules.icache  = Cache(nlines=self.nlines, nwords=self.nwords, nways=self.nways,
-                                               start_addr=self.start_addr, end_addr=self.end_addr,
+        icache  = m.submodules.icache  = Cache(nlines=self.nlines,
+                                               nwords=self.nwords,
+                                               nways=self.nways,
+                                               start_addr=self.start_addr,
+                                               end_addr=self.end_addr,
                                                enable_write=False)
         arbiter = m.submodules.arbiter = Arbiter()
 
