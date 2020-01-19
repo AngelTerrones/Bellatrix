@@ -88,16 +88,16 @@ core-sim-compliance-rv32im: build-core
 	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32im RISCV_ISA=rv32im
 
 core-sim-compliance-rv32mi: build-core
-	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32mi RISCV_ISA=rv32mi
+	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32mi
 
 core-sim-compliance-rv32ui: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32ui
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32ui
 
 core-sim-compliance-rv32Zicsr: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zicsr
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32Zicsr
 
 core-sim-compliance-rv32Zifencei: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zifencei
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32Zifencei
 
 build-extra-tests:
 	$(SUBMAKE) -C tests/extra-tests
