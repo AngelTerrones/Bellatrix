@@ -127,7 +127,6 @@ $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatr
 	@mkdir -p $(GEN_FOLDER)
 	@echo -e "Generate core:" $(BGreen)$(VARIANT)$(Color_Off)
 	@PYTHONPATH=$(ROOT) python $(CLI_FILE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
-	@sed -i '/verilog_initial_trigger/d' $(GEN_FOLDER)/bellatrix_core.v
 	@echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
 # ------------------------------------------------------------------------------
