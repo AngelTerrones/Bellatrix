@@ -14,7 +14,6 @@ from .wishbone import CycleType
 from .wishbone import Wishbone
 from .cache import Cache
 from .cache import SnoopPort
-from .configuration.configuration import Configuration
 
 
 class DataFormat(Elaboratable):
@@ -152,21 +151,19 @@ class BasicLSU(LSUInterface, Elaboratable):
 
 
 class CachedLSU(LSUInterface, Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
+    def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
-        self.nlines     = configuration.getOption('dcache', 'nlines')
-        self.nwords     = configuration.getOption('dcache', 'nwords')
-        self.nways      = configuration.getOption('dcache', 'nways')
-        self.start_addr = configuration.getOption('dcache', 'start_addr')
-        self.end_addr   = configuration.getOption('dcache', 'end_addr')
-
-        self.x_fence_i = Signal()    # input
-        self.x_busy    = Signal()    # input
-        self.m_addr    = Signal(32)  # input
-        self.m_load    = Signal()    # input
-        self.m_store   = Signal()    # input
-        self.snoop     = SnoopPort(name='clsu_snoop')
+        self.cache_kwargs = cache_kwargs
+        self.start_addr   = cache_kwargs['start_addr']
+        self.end_addr     = cache_kwargs['end_addr']
+        self.nwords       = cache_kwargs['nwords']
+        self.x_fence_i    = Signal()    # input
+        self.x_busy       = Signal()    # input
+        self.m_addr       = Signal(32)  # input
+        self.m_load       = Signal()    # input
+        self.m_store      = Signal()    # input
+        self.snoop        = SnoopPort(name='clsu_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -180,9 +177,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         wbuffer_din  = Record(wbuffer_layout)
         wbuffer_dout = Record(wbuffer_layout)
 
-        dcache  = m.submodules.dcache  = Cache(nlines=self.nlines, nwords=self.nwords, nways=self.nways,
-                                               start_addr=self.start_addr, end_addr=self.end_addr,
-                                               enable_write=True)
+        dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
         arbiter = m.submodules.arbiter = Arbiter()
         wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
 

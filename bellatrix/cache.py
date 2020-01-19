@@ -60,7 +60,7 @@ class Cache(Elaboratable):
             ('line',   line_bits),
             ('tag',    tag_bits)
         ]
-        if (extra_bits != 0):
+        if extra_bits != 0:
             self.pc_layout.append(('unused', extra_bits))
 
         # -------------------------------------------------------------------------

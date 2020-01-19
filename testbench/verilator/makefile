@@ -52,7 +52,7 @@ clean:
 
 .SECONDARY: $(OBJS)
 
-# Verilator
+# Verilate
 $(VOBJ)/Vtop__ALL.a: $(VSOURCES)
 	@mkdir -p $(VOUT)
 	@printf "%b" "$(COM_COLOR)$(VER_STRING)$(OBJ_COLOR) $(VTOP) $(NO_COLOR)\n"
@@ -60,18 +60,40 @@ $(VOBJ)/Vtop__ALL.a: $(VSOURCES)
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F)$(NO_COLOR)\n"
 	+@$(SUBMAKE) Vtop.mk
 
-# C++
-$(VOBJ)/%.o: cpp/%.cpp
+# Verilator
+$(VOBJ)/verilated.o: $(VINCD)/verilated.cpp
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
-	@$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
 
-$(VOBJS): $(VOBJ)/%.o: $(VINCD)/%.cpp
+$(VOBJ)/verilated_vcd_c.o: $(VINCD)/verilated_vcd_c.cpp
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
-	@$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
+	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
 
+$(VOBJ)/verilated_dpi.o: $(VINCD)/verilated_dpi.cpp
+	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
+	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
+
+# Bellatrix
+$(VOBJ)/aelf.o: cpp/aelf.cpp
+	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
+	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
+
+$(VOBJ)/coretb.o: cpp/coretb.cpp
+	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
+	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
+
+$(VOBJ)/main.o: cpp/main.cpp
+	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
+	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
+
+$(VOBJ)/ram.o: cpp/ram.cpp
+	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
+	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
+
+# Exe
 $(VOUT)/$(EXE).exe: $(VOBJS) $(OBJS) $(VOBJ)/Vtop__ALL.a
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F)$(NO_COLOR)\n"
-	@$(CXX) $(INCS) $^ -lelf -o $@
+	$(CXX) $(INCS) $^ -lelf -o $@
 	@printf "%b" "$(MSJ_COLOR)Compilation $(OK_COLOR)$(OK_STRING)$(NO_COLOR)\n"
 
 -include $(DEPFILES)

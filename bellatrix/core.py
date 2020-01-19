@@ -26,25 +26,78 @@ from .decoder import DecoderUnit
 from .multiplier import Multiplier
 from .divider import Divider
 from .predictor import BranchPredictor
-from .configuration import configuration as cfg
 from .cache import SnoopPort
 
 
 class Bellatrix(Elaboratable):
-    def __init__(self, configuration: cfg.Configuration) -> None:
-        if not isinstance(configuration, cfg.Configuration):
-            raise TypeError('Invalid data type for configuration. Must be a "Configuration" type')
-
-        self.configuration      = configuration
+    def __init__(self,
+                 # Core
+                 core_reset_address: int = 0x8000_0000,
+                 # ISA
+                 isa_enable_rv32m: bool = False,
+                 isa_enable_extra_csr: bool = False,
+                 isa_enable_user_mode: bool = False,
+                 # Brach predictor
+                 predictor_enable: bool = False,
+                 predictor_size: int = 64,
+                 # Instruction Cache
+                 icache_enable: bool = False,
+                 icache_nlines: int = 128,
+                 icache_nwords: int = 8,
+                 icache_nways: int = 1,
+                 icache_start: int = 0x8000_0000,
+                 icache_end: int = 0xffff_ffff,
+                 # Data cache
+                 dcache_enable: bool = False,
+                 dcache_nlines: int = 128,
+                 dcache_nwords: int = 8,
+                 dcache_nways: int = 1,
+                 dcache_start: int = 0x8000_0000,
+                 dcache_end: int = 0xffff_ffff
+                 ) -> None:
+        # ----------------------------------------------------------------------
+        self.reset_address    = core_reset_address
+        self.enable_rv32m     = isa_enable_rv32m
+        self.enable_extra_csr = isa_enable_extra_csr
+        self.enable_user_mode = isa_enable_user_mode
+        self.predictor_enable = predictor_enable
+        self.predictor_size   = predictor_size
+        self.icache_enable    = icache_enable
+        self.icache_nlines    = icache_nlines
+        self.icache_nwords    = icache_nwords
+        self.icache_nways     = icache_nways
+        self.icache_start     = icache_start
+        self.icache_end       = icache_end
+        self.dcache_enable    = dcache_enable
+        self.dcache_nlines    = dcache_nlines
+        self.dcache_nwords    = dcache_nwords
+        self.dcache_nways     = dcache_nways
+        self.dcache_start     = dcache_start
+        self.dcache_end       = dcache_end
+        # kwargs for units
+        self.exception_unit_kw = dict(enable_rv32m=self.enable_rv32m,
+                                      enable_extra_csr=self.enable_extra_csr,
+                                      enable_user_mode=self.enable_user_mode)
+        self.icache_kwargs = dict(nlines=self.icache_nlines,
+                                  nwords=self.icache_nwords,
+                                  nways=self.icache_nways,
+                                  start_addr=self.icache_start,
+                                  end_addr=self.icache_end)
+        self.dcache_kwargs = dict(nlines=self.dcache_nlines,
+                                  nwords=self.dcache_nwords,
+                                  nways=self.dcache_nways,
+                                  start_addr=self.dcache_start,
+                                  end_addr=self.dcache_end)
+        # ----------------------------------------------------------------------
         # IO
         self.iport              = Wishbone(name='iport')
         self.dport              = Wishbone(name='dport')
         self.external_interrupt = Signal()  # input
         self.timer_interrupt    = Signal()  # input
         self.software_interrupt = Signal()  # input
-        if (self.configuration.getOption('icache',  'enable')):
+        if self.icache_enable:
             self.i_snoop        = SnoopPort(name='i_snoop')
-        if (self.configuration.getOption('dcache',  'enable')):
+        if self.dcache_enable:
             self.d_snoop        = SnoopPort(name='d_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
@@ -72,25 +125,25 @@ class Bellatrix(Elaboratable):
         logic     = cpu.submodules.logic     = LogicUnit()
         shifter   = cpu.submodules.shifter   = ShifterUnit()
         compare   = cpu.submodules.compare   = CompareUnit()
-        decoder   = cpu.submodules.decoder   = DecoderUnit(self.configuration)
-        exception = cpu.submodules.exception = ExceptionUnit(self.configuration)
+        decoder   = cpu.submodules.decoder   = DecoderUnit(self.enable_rv32m)
+        exception = cpu.submodules.exception = ExceptionUnit(**self.exception_unit_kw)
         data_sel  = cpu.submodules.data_sel  = DataFormat()
         csr       = cpu.submodules.csr       = CSRFile()
-        if (self.configuration.getOption('icache',  'enable')):
-            fetch = cpu.submodules.fetch = CachedFetchUnit(self.configuration)
+        if self.icache_enable:
+            fetch = cpu.submodules.fetch = CachedFetchUnit(**self.icache_kwargs)
             cpu.d.comb += fetch.snoop.connect(self.i_snoop)
         else:
             fetch = cpu.submodules.fetch = BasicFetchUnit()
-        if (self.configuration.getOption('dcache',  'enable')):
-            lsu = cpu.submodules.lsu = CachedLSU(self.configuration)
+        if self.dcache_enable:
+            lsu = cpu.submodules.lsu = CachedLSU(**self.dcache_kwargs)
             cpu.d.comb += lsu.snoop.connect(self.d_snoop)
         else:
             lsu = cpu.submodules.lsu = BasicLSU()
-        if self.configuration.getOption('isa', 'enable_rv32m'):
+        if self.enable_rv32m:
             multiplier = cpu.submodules.multiplier = Multiplier()
             divider    = cpu.submodules.divider    = Divider()
-        if self.configuration.getOption('predictor', 'enable_predictor'):
-            predictor = cpu.submodules.predictor = BranchPredictor(self.configuration)
+        if self.predictor_enable:
+            predictor = cpu.submodules.predictor = BranchPredictor(self.predictor_size)
         # ----------------------------------------------------------------------
         # register file (GPR)
         gprf     = Memory(width=32, depth=32)
@@ -123,7 +176,7 @@ class Bellatrix(Elaboratable):
 
         # set the reset value.
         # to (RA -4) because the value to feed the fetch unit is the next pc:
-        a.endpoint_b.pc.reset = self.configuration.getOption('reset', 'reset_address') - 4
+        a.endpoint_b.pc.reset = self.reset_address - 4
 
         # select next pc
         with cpu.If(exception.m_exception & m.valid):
@@ -131,7 +184,7 @@ class Bellatrix(Elaboratable):
         with cpu.Elif(m.endpoint_a.mret & m.valid):
             cpu.d.comb += a_next_pc.eq(exception.csr.mepc.read)  # mret
 
-        if (self.configuration.getOption('predictor', 'enable_predictor')):
+        if self.predictor_enable:
             with cpu.Elif((m.endpoint_a.prediction & m.endpoint_a.branch) & ~m.endpoint_a.take_jmp_branch & m.valid):
                 cpu.d.comb += a_next_pc.eq(m.endpoint_a.pc + 4)  # branch not taken
             with cpu.Elif(~(m.endpoint_a.prediction & m.endpoint_a.branch) & m.endpoint_a.take_jmp_branch & m.valid):
@@ -188,7 +241,7 @@ class Bellatrix(Elaboratable):
         with cpu.Else():
             cpu.d.sync += f_kill_r.eq(0)
 
-        if (self.configuration.getOption('icache',  'enable')):
+        if self.icache_enable:
             cpu.d.comb += fetch.f_pc.eq(f.endpoint_a.pc)
             # TODO: create a (custom) CSR so we can flush the cache in software (?)
             # fetch.flush.eq(x.endpoint_a.fence_i & x.valid & ~x.stall),
@@ -316,7 +369,7 @@ class Bellatrix(Elaboratable):
             cpu.d.comb += x_result.eq(logic.result)
         with cpu.Elif(x.endpoint_a.jump):
             cpu.d.comb += x_result.eq(x.endpoint_a.pc + 4)
-        if (self.configuration.getOption('isa', 'enable_rv32m')):
+        if self.enable_rv32m:
             with cpu.Elif(x.endpoint_a.multiplier):
                 cpu.d.comb += x_result.eq(multiplier.result)
         with cpu.Else():
@@ -338,11 +391,11 @@ class Bellatrix(Elaboratable):
             lsu.x_valid.eq(x.valid & ~data_sel.x_misaligned),
             lsu.x_stall.eq(x.stall)
         ]
-        if (self.configuration.getOption('dcache', 'enable')):
+        if self.dcache_enable:
             cpu.d.comb += lsu.x_fence_i.eq(x.valid & x.endpoint_a.fence_i)
             x.add_stall_source(x.valid & x.endpoint_a.fence_i & m.valid & m.endpoint_a.store)
             x.add_stall_source(x.valid & lsu.x_busy)
-        if (self.configuration.getOption('isa', 'enable_rv32m')):
+        if self.enable_rv32m:
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
         x.add_kill_source(exception.m_exception & m.valid)
         x.add_kill_source(m.endpoint_a.mret & m.valid)
@@ -352,7 +405,7 @@ class Bellatrix(Elaboratable):
         csr_wdata = Signal(32)
 
         # jump/branch
-        if (self.configuration.getOption('predictor', 'enable_predictor')):
+        if self.predictor_enable:
             cpu.d.comb += m_kill_bj.eq(((m.endpoint_a.prediction & m.endpoint_a.branch) ^ m.endpoint_a.take_jmp_branch) & m.valid)
         else:
             cpu.d.comb += m_kill_bj.eq(m.endpoint_a.take_jmp_branch & m.valid)
@@ -364,7 +417,7 @@ class Bellatrix(Elaboratable):
             cpu.d.comb += m_result.eq(shifter.result)
         with cpu.Elif(m.endpoint_a.compare):
             cpu.d.comb += m_result.eq(m.endpoint_a.compare_result)
-        if (self.configuration.getOption('isa', 'enable_rv32m')):
+        if self.enable_rv32m:
             with cpu.Elif(m.endpoint_a.divider):
                 cpu.d.comb += m_result.eq(divider.result)
         with cpu.Else():
@@ -380,7 +433,7 @@ class Bellatrix(Elaboratable):
             lsu.m_valid.eq(m.valid),
             lsu.m_stall.eq(m.stall)
         ]
-        if (self.configuration.getOption('dcache', 'enable')):
+        if self.dcache_enable:
             cpu.d.comb += [
                 lsu.m_addr.eq(m.endpoint_a.result),
                 lsu.m_load.eq(m.endpoint_a.load),
@@ -436,12 +489,12 @@ class Bellatrix(Elaboratable):
         ]
 
         m.add_stall_source(m.valid & lsu.m_busy)
-        if (self.configuration.getOption('isa', 'enable_rv32m')):
+        if self.enable_rv32m:
             m.add_stall_source(divider.busy)
         m.add_kill_source(exception.m_exception & m.valid)
         # ----------------------------------------------------------------------
         # Write-back stage
-        if self.configuration.getOption('isa', 'enable_extra_csr'):
+        if self.enable_extra_csr:
             cpu.d.comb += exception.w_retire.eq(w.is_instruction)  # use the stage's signal
 
         with cpu.If(w.endpoint_a.load):
@@ -453,7 +506,7 @@ class Bellatrix(Elaboratable):
 
         # ----------------------------------------------------------------------
         # Optional units: Multiplier/Divider
-        if (self.configuration.getOption('isa', 'enable_rv32m')):
+        if self.enable_rv32m:
             cpu.d.comb += [
                 multiplier.op.eq(x.endpoint_a.funct3),
                 multiplier.dat1.eq(x.endpoint_a.src_data1),
@@ -469,7 +522,7 @@ class Bellatrix(Elaboratable):
             ]
         # ----------------------------------------------------------------------
         # Optional units: branch predictor
-        if (self.configuration.getOption('predictor', 'enable_predictor')):
+        if self.predictor_enable:
             cpu.d.comb += [
                 predictor.a_pc.eq(a_next_pc_fu),
                 predictor.a_stall.eq(a.stall),
@@ -495,7 +548,7 @@ class Bellatrix(Elaboratable):
                 f.endpoint_b.fetch_error.eq(fetch.f_bus_error),
                 f.endpoint_b.fetch_badaddr.eq(fetch.f_badaddr)
             ]
-            if (self.configuration.getOption('predictor', 'enable_predictor')):
+            if self.predictor_enable:
                 cpu.d.sync += [
                     f.endpoint_b.prediction.eq(predictor.f_prediction),
                     f.endpoint_b.prediction_state.eq(predictor.f_prediction_state)

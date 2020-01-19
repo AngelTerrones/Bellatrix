@@ -9,7 +9,6 @@ from .wishbone import CycleType
 from .wishbone import Wishbone
 from .cache import Cache
 from .cache import SnoopPort
-from .configuration.configuration import Configuration
 
 
 class FetchUnitInterface:
@@ -76,28 +75,21 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
 
 
 class CachedFetchUnit(FetchUnitInterface, Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
+    def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
-        self.nlines     = configuration.getOption('icache', 'nlines')
-        self.nwords     = configuration.getOption('icache', 'nwords')
-        self.nways      = configuration.getOption('icache', 'nways')
-        self.start_addr = configuration.getOption('icache', 'start_addr')
-        self.end_addr   = configuration.getOption('icache', 'end_addr')
-
-        self.f_pc  = Signal(32)  # input
-        self.flush = Signal()    # input
-        self.snoop = SnoopPort(name='cfu_snoop')
+        self.cache_kwargs = cache_kwargs
+        self.start_addr   = cache_kwargs['start_addr']
+        self.end_addr     = cache_kwargs['end_addr']
+        self.nwords       = cache_kwargs['nwords']
+        self.f_pc         = Signal(32)  # input
+        self.flush        = Signal()    # input
+        self.snoop        = SnoopPort(name='cfu_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        icache  = m.submodules.icache  = Cache(nlines=self.nlines,
-                                               nwords=self.nwords,
-                                               nways=self.nways,
-                                               start_addr=self.start_addr,
-                                               end_addr=self.end_addr,
-                                               enable_write=False)
+        icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
         arbiter = m.submodules.arbiter = Arbiter()
 
         cache_port = arbiter.add_port(priority=0)

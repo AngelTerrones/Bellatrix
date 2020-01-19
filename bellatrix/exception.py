@@ -10,15 +10,15 @@ from .isa import ExceptionCause
 from .isa import misa_layout, mstatus_layout, mie_layout, mtvec_layout
 from .isa import mepc_layout, mcause_layout, mip_layout, basic_layout
 from .isa import PrivMode
-from .configuration.configuration import Configuration
 
 
 class ExceptionCSR:
     def __init__(self,
-                 extra_csr: bool = False,  # Enable extra CSRs
-                 user_mode: bool = False   # Enable user-mode
+                 enable_extra_csr: bool,  # Enable extra CSRs
+                 enable_user_mode: bool   # Enable user-mode
                  ) -> None:
-        if extra_csr:
+        # ----------------------------------------------------------------------
+        if enable_extra_csr:
             self.misa      = CSR(CSRIndex.MISA, 'misa', misa_layout)
             self.mhartid   = CSR(CSRIndex.MHARTID, 'mhartid', basic_layout)
             self.mimpid    = CSR(CSRIndex.MIMPID, 'mimpid', basic_layout)
@@ -28,7 +28,7 @@ class ExceptionCSR:
             self.mcycle    = CSR(CSRIndex.MCYCLE, 'mcycle', basic_layout)
             self.minstreth = CSR(CSRIndex.MINSTRETH, 'minstreth', basic_layout)
             self.mcycleh   = CSR(CSRIndex.MCYCLEH, 'mcycleh', basic_layout)
-            if user_mode:
+            if enable_user_mode:
                 self.instret  = CSR(CSRIndex.INSTRET, 'instret', basic_layout)
                 self.cycle    = CSR(CSRIndex.CYCLE, 'cycle', basic_layout)
                 self.instreth = CSR(CSRIndex.INSTRETH, 'instreth', basic_layout)
@@ -46,20 +46,26 @@ class ExceptionCSR:
             self.mstatus, self.mie, self.mtvec, self.mscratch,
             self.mepc, self.mcause, self.mtval, self.mip
         ]
-        if extra_csr:
+        if enable_extra_csr:
             self.csr_list += [self.misa, self.mhartid, self.mimpid, self.marchid, self.mvendorid]
             self.csr_list += [self.minstret, self.mcycle, self.minstreth, self.mcycleh]
-            if user_mode:
+            if enable_user_mode:
                 self.csr_list += [self.instret, self.cycle, self.instreth, self.cycleh]
 
 
 class ExceptionUnit(Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
-        self.usermode  = configuration.getOption('isa', 'enable_user_mode')
-        self.extra_csr = configuration.getOption('isa', 'enable_extra_csr')
-        self.rv32m     = configuration.getOption('isa', 'enable_rv32m')
+    def __init__(self,
+                 enable_rv32m: bool,
+                 enable_extra_csr: bool,
+                 enable_user_mode: bool
+                 ) -> None:
+        # ----------------------------------------------------------------------
+        self.enable_user_mode = enable_user_mode
+        self.enable_extra_csr = enable_extra_csr
+        self.enable_rv32m     = enable_rv32m
 
-        self.csr = ExceptionCSR(extra_csr=self.extra_csr, user_mode=self.usermode)
+        self.csr = ExceptionCSR(enable_extra_csr=self.enable_extra_csr,
+                                enable_user_mode=self.enable_user_mode)
 
         self.external_interrupt   = Signal()    # input
         self.software_interrupt   = Signal()    # input
@@ -84,7 +90,7 @@ class ExceptionUnit(Elaboratable):
         self.m_valid              = Signal()    # input
         self.m_exception          = Signal()    # output
         self.m_privmode           = Signal(PrivMode)   # output
-        if self.extra_csr:
+        if self.enable_extra_csr:
             self.w_retire = Signal()
 
     def elaborate(self, platform: Platform) -> Module:
@@ -101,11 +107,11 @@ class ExceptionUnit(Elaboratable):
                 m.d.sync += reg.read.eq(reg.write)
 
         # constants (at least, the important ones)
-        if self.extra_csr:
+        if self.enable_extra_csr:
             misa = 0x1 << 30 | (1 << (ord('i') - ord('a')))  # 32-bits processor. RV32I
-            if self.rv32m:
+            if self.enable_rv32m:
                 misa |= 1 << (ord('m') - ord('a'))  # RV32M
-            if self.usermode:
+            if self.enable_user_mode:
                 misa |= 1 << (ord('u') - ord('a'))  # User mode enabled
 
             m.d.sync += [
@@ -149,7 +155,7 @@ class ExceptionUnit(Elaboratable):
             self.csr.mip.read.meip.eq(self.external_interrupt)
         ]
 
-        if self.usermode:
+        if self.enable_user_mode:
             self.csr.mstatus.read.mpp.reset = PrivMode.User
             with m.If(self.csr.mstatus.write.mpp != PrivMode.User):
                 # In case of writting an invalid priviledge mode, force a valid one
@@ -239,11 +245,11 @@ class ExceptionUnit(Elaboratable):
                     self.csr.mstatus.read.mie.eq(self.csr.mstatus.read.mpie),
                     privmode.eq(self.csr.mstatus.read.mpp),
                 ]
-                if self.usermode:
+                if self.enable_user_mode:
                     m.d.sync += self.csr.mstatus.read.mpp.eq(PrivMode.User)
 
         # counters
-        if self.extra_csr:
+        if self.enable_extra_csr:
             mcycle   = Signal(64)
             minstret = Signal(64)
 
@@ -262,7 +268,7 @@ class ExceptionUnit(Elaboratable):
                 m.d.comb += minstret.eq(Cat(self.csr.minstret.read, self.csr.minstreth.read))
 
             # shadow versions of MCYCLE and MINSTRET
-            if self.usermode:
+            if self.enable_user_mode:
                 m.d.sync += [
                     self.csr.cycle.read.eq(mcycle[:32]),
                     self.csr.cycleh.read.eq(mcycle[32:64]),

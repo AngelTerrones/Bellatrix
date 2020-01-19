@@ -8,7 +8,6 @@ from .isa import Funct7
 from .isa import Funct12
 from .isa import Opcode
 from .isa import PrivMode
-from .configuration.configuration import Configuration
 from functools import reduce
 from operator import or_
 from typing import Tuple, List, Optional
@@ -25,8 +24,8 @@ class Type(IntEnum):
 
 
 class DecoderUnit(Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
-        self.enable_isa_m = configuration.getOption('isa', 'enable_rv32m')
+    def __init__(self, enable_rv32m: bool) -> None:
+        self.enable_rv32m = enable_rv32m
 
         self.instruction     = Signal(32)  # input
         self.gpr_rs1         = Signal(5)   # output
@@ -244,7 +243,7 @@ class DecoderUnit(Elaboratable):
             self.csr_we.eq(~funct3[1] | self.gpr_rs1 != 0),
         ]
 
-        if (self.enable_isa_m):
+        if (self.enable_rv32m):
             m.d.comb += [
                 self.multiply.eq(match([
                     (Opcode.OP, Funct3.MUL, Funct7.MULDIV, None),

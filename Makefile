@@ -21,11 +21,10 @@ BFOLDER	 = $(ROOT)/build
 VCOREDIR = $(ROOT)/testbench/verilator
 
 CORE_FILES=$(shell find bellatrix -name "*.py")
-BUILD_FILE=$(ROOT)/scripts/build.py
+CLI_FILE=$(ROOT)/cli.py
 
-CFG_FILES=$(shell find configurations -name "*.ini")
-CFG_BASENAME=$(basename $(notdir $(CONFIG)))
-GEN_FOLDER=$(BFOLDER)/$(CFG_BASENAME)
+VARIANTS=minimal lite standard full
+GEN_FOLDER=$(BFOLDER)/$(VARIANT)
 
 OBJ_FOLDER_DEL=$(shell find $(BFOLDER) -name "*obj_*")
 
@@ -39,7 +38,7 @@ export RISCV_PREFIX ?= $(RVGCC_PATH)/riscv64-unknown-elf-
 export TARGET_FOLDER = $(VCOREDIR)
 export RTLDIR = $(GEN_FOLDER)
 export VOUT = $(GEN_FOLDER)
-export BCONFIG = $(CONFIG)
+export VARIANT
 
 # ------------------------------------------------------------------------------
 # targetsEXE
@@ -113,21 +112,21 @@ setup-environment:
 generate-core: $(GEN_FOLDER)/bellatrix_core.v
 
 generate-core-all:
-	+@$(foreach cfg, $(CFG_FILES), make generate-core CONFIG=$(cfg);)
+	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant);)
 
 build-core: generate-core
 	@mkdir -p $(BFOLDER)
 	+@$(SUBMAKE) -C $(VCOREDIR)
 
 build-core-all:
-	+@$(foreach cfg, $(CFG_FILES), make build-core CONFIG=$(cfg);)
+	+@$(foreach variant, $(VARIANTS), make build-core VARIANT=$(variant);)
 # ------------------------------------------------------------------------------
 # HIDDEN
 # ------------------------------------------------------------------------------
-$(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(BUILD_FILE) $(CONFIG)
+$(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatrix_$(VARIANT).yml
 	@mkdir -p $(GEN_FOLDER)
-	@echo -e "Generate core:" $(BGreen)$(shell basename $(CONFIG))$(Color_Off)
-	@PYTHONPATH=$(ROOT) python scripts/build.py --config-file $(CONFIG) generate $(GEN_FOLDER)/bellatrix_core.v
+	@echo -e "Generate core:" $(BGreen)$(VARIANT)$(Color_Off)
+	@PYTHONPATH=$(ROOT) python $(CLI_FILE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
 	@sed -i '/verilog_initial_trigger/d' $(GEN_FOLDER)/bellatrix_core.v
 	@echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
