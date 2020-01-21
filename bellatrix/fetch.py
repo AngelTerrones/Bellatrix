@@ -89,11 +89,13 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
-        arbiter = m.submodules.arbiter = Arbiter()
+        cache_port     = Wishbone(name='cfu_cache')
+        bare_port      = Wishbone(name='cfu_bare')
+        arbiter_bus    = Wishbone(name='cfu_bus')
+        arbiter_master = [cache_port, bare_port]
 
-        cache_port = arbiter.add_port(priority=0)
-        bare_port  = arbiter.add_port(priority=1)
+        icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
+        m.submodules.arbiter = Arbiter(masters=arbiter_master, slave=arbiter_bus)
 
         a_use_cache = Signal()
         f_use_cache = Signal()
@@ -103,7 +105,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         with m.If(~self.a_stall):
             m.d.sync += f_use_cache.eq(a_use_cache)
-        m.d.comb += arbiter.bus.connect(self.iport)
+        m.d.comb += arbiter_bus.connect(self.iport)
 
         # connect IO: cache
         m.d.comb += [

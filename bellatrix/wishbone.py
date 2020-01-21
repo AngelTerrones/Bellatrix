@@ -1,12 +1,16 @@
+from nmigen import Signal
 from nmigen import Module
 from nmigen import Record
 from nmigen import Array
+from nmigen import Repl
 from nmigen import Elaboratable
 from nmigen.hdl.rec import DIR_FANIN
 from nmigen.hdl.rec import DIR_FANOUT
 from nmigen.lib.coding import PriorityEncoder
 from nmigen.build import Platform
-from typing import Dict
+from typing import List, Tuple, Callable, Union
+from operator import or_
+from functools import reduce
 
 
 class CycleType:
@@ -44,46 +48,125 @@ class Wishbone(Record):
 
 
 class Arbiter(Elaboratable):
-    def __init__(self) -> None:
-        self.bus = Wishbone(name='arbiter_s_bus')
-        self._ports: Dict[int, Record] = dict()
-
-    def add_port(self, priority: int) -> Record:
-        # check if the priority is a number
-        if not isinstance(priority, int) or priority < 0:
-            raise TypeError('Priority must be a positive integer: {}'.format(priority))
-        # check for duplicates
-        if priority in self._ports:
-            raise ValueError('Duplicated priority: {}'.format(priority))
-
-        port = self._ports[priority] = Wishbone(name='arbiter_m{}'.format(priority))
-        return port
+    def __init__(self,
+                 masters: Union[List[Wishbone], Tuple[Wishbone, ...]],
+                 slave: Wishbone
+                 ) -> None:
+        self.masters = masters
+        self.slave   = slave
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        ports  = [port for prio, port in sorted(self._ports.items())]  # sort port for priority
-        aports = Array(ports)
-        bus_pe = m.submodules.bus_prio = PriorityEncoder(len(ports))
+        aports = Array(self.masters)
+        bus_pe = m.submodules.bus_prio = PriorityEncoder(len(self.masters))
 
-        with m.If(~self.bus.cyc):
-            for idx, port in enumerate(ports):
+        with m.If(~self.slave.cyc):
+            for idx, port in enumerate(self.masters):
                 m.d.sync += bus_pe.i[idx].eq(port.cyc)
 
         bselected = aports[bus_pe.o]
 
+        # connect selected master <-> slave signal
+        for name, size, direction in wishbone_layout:
+            if direction == DIR_FANOUT:
+                m.d.comb += getattr(self.slave, name).eq(getattr(bselected, name))
+            else:
+                m.d.comb += getattr(bselected, name).eq(getattr(self.slave, name))
+
+        return m
+
+
+class Decoder(Elaboratable):
+    def __init__(self,
+                 master: Wishbone,
+                 slaves: List[Tuple[Wishbone, Callable]],
+                 register: bool = False
+                 ) -> None:
+        # TODO: define better way to define the region
+        # Dictionary or tuple of values ?
+        self.register = register
+        self.master   = master
+        self.slaves   = slaves
+
+    def elaborate(self, platform: Platform) -> None:
+        m = Module()
+
+        ns = len(self.slaves)
+        slave_sel   = Signal(ns)
+        slave_sel_r = Signal(ns)
+
+        # decode slave address
+        for i, (bus, fun) in enumerate(self.slaves):
+            m.d.comb += slave_sel[i].eq(fun(self.master.addr))
+
+        # register the slave select signal
+        if self.register:
+            m.d.sync += slave_sel_r.eq(slave_sel)
+        else:
+            m.d.comb += slave_sel_r.eq(slave_sel)
+
+        # connect master -> slave signals
+        for slave in self.slaves:
+            for name, size, direction in wishbone_layout:
+                if direction == DIR_FANOUT and name != 'cyc':
+                    m.d.comb += getattr(slave[0], name).eq(getattr(self.master, name))
+
+        # mask the cyc signal using the slave select
+        for i, slave in enumerate(self.slaves):
+            m.d.comb += slave[0].cyc.eq(self.master.cyc & slave_sel_r[i])
+
+        # connect slave -> master signals
+        dat_masked = [Repl(slave_sel_r[i], 32) & self.slaves[i][0].dat_r for i in range(ns)]
         m.d.comb += [
-            self.bus.addr.eq(bselected.addr),
-            self.bus.dat_w.eq(bselected.dat_w),
-            self.bus.sel.eq(bselected.sel),
-            self.bus.we.eq(bselected.we),
-            self.bus.cyc.eq(bselected.cyc),
-            self.bus.stb.eq(bselected.stb),
-            self.bus.cti.eq(bselected.cti),
-            self.bus.bte.eq(bselected.bte),
-            bselected.dat_r.eq(self.bus.dat_r),
-            bselected.ack.eq(self.bus.ack),
-            bselected.err.eq(self.bus.err)
+            self.master.dat_r.eq(reduce(or_, dat_masked)),
+            self.master.ack.eq(reduce(or_, [slave[0].ack for slave in self.slaves])),
+            self.master.err.eq(reduce(or_, [slave[0].err for slave in self.slaves]))
         ]
+
+        return m
+
+
+class SharedInterconnect(Elaboratable):
+    def __init__(self,
+                 masters: List[Record],
+                 slaves: List[Tuple[Wishbone, Callable]],
+                 register: bool = False
+                 ) -> None:
+        self.register = register
+        self.masters  = masters
+        self.slaves   = slaves
+
+    def elaborate(self, plaform: Platform) -> Module:
+        m = Module()
+        shared = Wishbone(name='shared_intercon')
+        m.submodules.arbiter = Arbiter(masters=self.masters, slave=shared)
+        m.submodules.decoder = Decoder(master=shared, slaves=self.slaves, register=self.register)
+
+        return m
+
+
+class Crossbar(Elaboratable):
+    def __init__(self,
+                 masters: List[Record],
+                 slaves: List[Tuple[Wishbone, Callable]],
+                 register: bool = False
+                 ) -> None:
+        self.register = register
+        self.masters  = masters
+        self.slaves   = slaves
+
+    def elaborate(self, plaform: Platform) -> Module:
+        m = Module()
+
+        busses, matches = zip(*self.slaves)
+        access = [[Wishbone(name='xbar_{}{}'.format(i, j)) for j in self.slaves] for i in self.masters]
+        # decode master into access row
+        for master, row in zip(self.masters, access):
+            row2 = list(zip(row, matches))
+            m.submodules += Decoder(master=master, slaves=row2, register=self.register)
+        # arbitrate access column -> slave
+        for column, bus in zip(zip(*access), busses):
+            m.submodules += Arbiter(masters=column, slave=bus)
 
         return m
