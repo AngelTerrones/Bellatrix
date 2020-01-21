@@ -16,7 +16,8 @@ echo -e ${BYellow}"Creating python virtual environment"${Color_Off}
 python3 -m venv $VENV
 source $VENV/bin/activate
 echo -e ${BYellow}"Installing required packages for development"${Color_Off}
-pip3 install flake8 rope wheel mypy pyyaml
+pip3 install flake8 rope wheel mypy
+pip3 install pyyaml
 echo -e ${BYellow}"Installing nMigen"${Color_Off}
 pip3 install git+https://github.com/m-labs/nmigen.git
 deactivate
