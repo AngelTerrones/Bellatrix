@@ -4,6 +4,7 @@ from nmigen import Module
 from nmigen import Memory
 from nmigen import Elaboratable
 from nmigen.build import Platform
+from typing import List
 from .csr import CSRFile
 from .stage import Stage
 from .adder import AdderUnit
@@ -26,7 +27,6 @@ from .decoder import DecoderUnit
 from .multiplier import Multiplier
 from .divider import Divider
 from .predictor import BranchPredictor
-from .cache import SnoopPort
 
 
 class Bellatrix(Elaboratable):
@@ -95,10 +95,38 @@ class Bellatrix(Elaboratable):
         self.external_interrupt = Signal()  # input
         self.timer_interrupt    = Signal()  # input
         self.software_interrupt = Signal()  # input
-        if self.icache_enable:
-            self.i_snoop        = SnoopPort(name='i_snoop')
-        if self.dcache_enable:
-            self.d_snoop        = SnoopPort(name='d_snoop')
+
+    def port_list(self) -> List:
+        return [
+            # instruction port
+            self.iport.addr,
+            self.iport.dat_w,
+            self.iport.sel,
+            self.iport.we,
+            self.iport.cyc,
+            self.iport.stb,
+            self.iport.cti,
+            self.iport.bte,
+            self.iport.dat_r,
+            self.iport.ack,
+            self.iport.err,
+            # data port
+            self.dport.addr,
+            self.dport.dat_w,
+            self.dport.sel,
+            self.dport.we,
+            self.dport.cyc,
+            self.dport.stb,
+            self.dport.cti,
+            self.dport.bte,
+            self.dport.dat_r,
+            self.dport.ack,
+            self.dport.err,
+            # exceptions
+            self.external_interrupt,
+            self.timer_interrupt,
+            self.software_interrupt
+        ]
 
     def elaborate(self, platform: Platform) -> Module:
         cpu = Module()
@@ -131,12 +159,18 @@ class Bellatrix(Elaboratable):
         csr       = cpu.submodules.csr       = CSRFile()
         if self.icache_enable:
             fetch = cpu.submodules.fetch = CachedFetchUnit(**self.icache_kwargs)
-            cpu.d.comb += fetch.snoop.connect(self.i_snoop)
+            # connect the data port to the "internal snoop bus"
+            # TODO need to change the name...
+            cpu.d.comb += [
+                fetch.snoop.addr.eq(self.dport.addr),
+                fetch.snoop.we.eq(self.dport.we),
+                fetch.snoop.valid.eq(self.dport.cyc),
+                fetch.snoop.ack.eq(self.dport.ack)
+            ]
         else:
             fetch = cpu.submodules.fetch = BasicFetchUnit()
         if self.dcache_enable:
             lsu = cpu.submodules.lsu = CachedLSU(**self.dcache_kwargs)
-            cpu.d.comb += lsu.snoop.connect(self.d_snoop)
         else:
             lsu = cpu.submodules.lsu = BasicLSU()
         if self.enable_rv32m:

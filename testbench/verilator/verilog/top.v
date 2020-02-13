@@ -89,17 +89,7 @@ module top (
                         .dport__err         (dport__err),
                         .external_interrupt (external_interrupt),
                         .timer_interrupt    (timer_interrupt),
-                        .software_interrupt (software_interrupt),
-                        // snoop bus: connect to slave0 = RAM
-                        // TODO: move to SoC builder
-                        .i_snoop__addr      (slave_addr),
-                        .i_snoop__we        (slave_we),
-                        .i_snoop__valid     (slave0_cyc),
-                        .i_snoop__ack       (slave0_ack),
-                        .d_snoop__addr      (slave_addr),
-                        .d_snoop__we        (slave_we),
-                        .d_snoop__valid     (slave0_cyc),
-                        .d_snoop__ack       (slave0_ack)
+                        .software_interrupt (software_interrupt)
                         );
 
     mux_switch #(// Parameters

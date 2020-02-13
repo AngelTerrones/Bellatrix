@@ -14,7 +14,7 @@ from nmigen.build import Platform
 from nmigen.hdl.rec import DIR_FANIN
 
 
-class SnoopPort(Record):
+class InternalSnoopPort(Record):
     def __init__(self, name=None) -> None:
         _layout = [
             ('addr', 32, DIR_FANIN),
@@ -93,8 +93,8 @@ class Cache(Elaboratable):
         self.access_cnt = Signal(40)
         self.miss_cnt   = Signal(40)
         # snoop bus
-        self.snoop      = SnoopPort(name='cache_snoop')
-        self.self_snoop = SnoopPort(name='self_snoop')
+        if not enable_write:
+            self.snoop = InternalSnoopPort(name='cache_snoop')  # RO cache. Implement the Internal snooping port
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -151,23 +151,25 @@ class Cache(Elaboratable):
         # read data from the cache
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))
 
-        # Snoop
+        # Internal Snoop
         snoop_use_cache     = Signal()
         snoop_tag_match     = Signal()
         snoop_line_match    = Signal()
         snoop_cancel_refill = Signal()
+        if not self.enable_write:
+            bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
 
-        bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
+            m.d.comb += [
+                snoop_addr.eq(self.snoop.addr),  # aux
 
-        m.d.comb += [
-            snoop_addr.eq(self.snoop.addr),  # aux
-
-            snoop_valid.eq(self.snoop.we & self.snoop.valid & self.snoop.ack),
-            snoop_use_cache.eq(snoop_addr[bits_range:] == (self.start_addr >> bits_range)),
-            snoop_tag_match.eq(snoop_addr.tag == self.s2_address.tag),
-            snoop_line_match.eq(snoop_addr.line == self.s2_address.line),
-            snoop_cancel_refill.eq(snoop_use_cache & snoop_valid & snoop_line_match & snoop_tag_match),
-        ]
+                snoop_valid.eq(self.snoop.we & self.snoop.valid & self.snoop.ack),
+                snoop_use_cache.eq(snoop_addr[bits_range:] == (self.start_addr >> bits_range)),
+                snoop_tag_match.eq(snoop_addr.tag == self.s2_address.tag),
+                snoop_line_match.eq(snoop_addr.line == self.s2_address.line),
+                snoop_cancel_refill.eq(snoop_use_cache & snoop_valid & snoop_line_match & snoop_tag_match),
+            ]
+        else:
+            m.d.comb += snoop_cancel_refill.eq(0)
 
         with m.FSM():
             with m.State('READ'):
@@ -273,19 +275,18 @@ class Cache(Elaboratable):
                     data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                 ]
 
-            # snoop
-            _match_snoop = Signal()
-            self_match   = Signal()
+            if not self.enable_write:
+                # intenal snoop
+                # for FENCE.i instruction
+                _match_snoop = Signal()
 
-            m.d.comb += [
-                snoop_rp.addr.eq(snoop_addr.line),  # read tag memory
-                _match_snoop.eq(snoop_rp.data == snoop_addr.tag),
-                way.snoop_hit.eq(snoop_use_cache & snoop_valid & _match_snoop & valid.bit_select(snoop_addr.line, 1)),
-            ]
-            # check is the snoop match a write from this core
-            m.d.comb += self_match.eq((self.self_snoop.addr == self.snoop.addr) & self.self_snoop.valid & self.self_snoop.we & self.self_snoop.ack)
-            with m.If(way.snoop_hit):
-                with m.If(~self_match):
+                m.d.comb += [
+                    snoop_rp.addr.eq(snoop_addr.line),  # read tag memory
+                    _match_snoop.eq(snoop_rp.data == snoop_addr.tag),
+                    way.snoop_hit.eq(snoop_use_cache & snoop_valid & _match_snoop & valid.bit_select(snoop_addr.line, 1)),
+                ]
+                # check is the snoop match a write from this core
+                with m.If(way.snoop_hit):
                     m.d.sync += valid.bit_select(snoop_addr.line, 1).eq(0)
 
         return m

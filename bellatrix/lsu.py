@@ -13,7 +13,6 @@ from .wishbone import Arbiter
 from .wishbone import CycleType
 from .wishbone import Wishbone
 from .cache import Cache
-from .cache import SnoopPort
 
 
 class DataFormat(Elaboratable):
@@ -163,7 +162,6 @@ class CachedLSU(LSUInterface, Elaboratable):
         self.m_addr       = Signal(32)  # input
         self.m_load       = Signal()    # input
         self.m_store      = Signal()    # input
-        self.snoop        = SnoopPort(name='clsu_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -249,12 +247,6 @@ class CachedLSU(LSUInterface, Elaboratable):
         # --------------------------------------------------
         # connect IO: cache
         m.d.comb += [
-            dcache.snoop.connect(self.snoop),
-            dcache.self_snoop.addr.eq(self.dport.addr),
-            dcache.self_snoop.we.eq(self.dport.we),
-            dcache.self_snoop.valid.eq(self.dport.cyc),
-            dcache.self_snoop.ack.eq(self.dport.ack),
-
             dcache.s1_address.eq(self.x_addr),
             dcache.s1_flush.eq(0),
             dcache.s1_valid.eq(self.x_valid),

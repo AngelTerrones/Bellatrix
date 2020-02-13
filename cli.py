@@ -63,50 +63,7 @@ def generate_verilog(parser, args):
 
     # create the core
     cpu = Bellatrix(**core_config)
-    ports = [
-        # instruction port
-        cpu.iport.addr,
-        cpu.iport.dat_w,
-        cpu.iport.sel,
-        cpu.iport.we,
-        cpu.iport.cyc,
-        cpu.iport.stb,
-        cpu.iport.cti,
-        cpu.iport.bte,
-        cpu.iport.dat_r,
-        cpu.iport.ack,
-        cpu.iport.err,
-        # data port
-        cpu.dport.addr,
-        cpu.dport.dat_w,
-        cpu.dport.sel,
-        cpu.dport.we,
-        cpu.dport.cyc,
-        cpu.dport.stb,
-        cpu.dport.cti,
-        cpu.dport.bte,
-        cpu.dport.dat_r,
-        cpu.dport.ack,
-        cpu.dport.err,
-        # exceptions
-        cpu.external_interrupt,
-        cpu.timer_interrupt,
-        cpu.software_interrupt
-    ]
-    if core_config['icache_enable']:
-        ports += [
-            cpu.i_snoop.addr,
-            cpu.i_snoop.we,
-            cpu.i_snoop.valid,
-            cpu.i_snoop.ack,
-        ]
-    if core_config['dcache_enable']:
-        ports += [
-            cpu.d_snoop.addr,
-            cpu.d_snoop.we,
-            cpu.d_snoop.valid,
-            cpu.d_snoop.ack,
-        ]
+    ports = cpu.port_list()
 
     # generate the verilog file
     cli.main_runner(parser, args, cpu, name='bellatrix_core', ports=ports)
