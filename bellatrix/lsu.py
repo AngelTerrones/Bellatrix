@@ -177,15 +177,13 @@ class CachedLSU(LSUInterface, Elaboratable):
         wbuffer_din  = Record(wbuffer_layout)
         wbuffer_dout = Record(wbuffer_layout)
 
-        wbuffer_port = Wishbone(name='clsu_wbuffer')
-        cache_port   = Wishbone(name='clsu_cache')
-        bare_port    = Wishbone(name='clsu_bare')
-        arbiter_bus    = Wishbone(name='cfu_bus')
-        arbiter_master = [wbuffer_port, cache_port, bare_port]
-
         dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
+        arbiter = m.submodules.arbiter = Arbiter()
         wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
-        m.submodules.arbiter = Arbiter(masters=arbiter_master, slave=arbiter_bus)
+
+        wbuffer_port = arbiter.add_port(priority=0)
+        cache_port   = arbiter.add_port(priority=1)
+        bare_port    = arbiter.add_port(priority=2)
 
         x_use_cache = Signal()
         m_use_cache = Signal()
@@ -201,7 +199,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                 m_data_w.eq(self.x_data_w),
                 m_byte_sel.eq(self.x_byte_sel)
             ]
-        m.d.comb += arbiter_bus.connect(self.dport)
+        m.d.comb += arbiter.bus.connect(self.dport)
 
         # --------------------------------------------------
         # write buffer IO
