@@ -194,7 +194,7 @@ To execute a single `.elf` file:
 [1]: https://riscv.org/specifications/
 [2]: https://riscv.org/specifications/privileged-isa/
 [3]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
-[4]: https://github.com/m-labs/nmigen/
+[4]: https://github.com/nmigen/nmigen/
 [5]: https://www.veripool.org/wiki/verilator
 [7]: https://github.com/riscv/riscv-compliance
 [8]: https://www.sifive.com/boards
