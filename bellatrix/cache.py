@@ -275,7 +275,7 @@ class Cache(Elaboratable):
                     data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                 ]
 
-            if not self.enable_write:
+                # --------------------------------------------------------------
                 # intenal snoop
                 # for FENCE.i instruction
                 _match_snoop = Signal()
@@ -288,5 +288,6 @@ class Cache(Elaboratable):
                 # check is the snoop match a write from this core
                 with m.If(way.snoop_hit):
                     m.d.sync += valid.bit_select(snoop_addr.line, 1).eq(0)
+                # --------------------------------------------------------------
 
         return m
