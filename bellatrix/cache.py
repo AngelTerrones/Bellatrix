@@ -94,7 +94,7 @@ class Cache(Elaboratable):
         self.miss_cnt   = Signal(40)
         # snoop bus
         if not enable_write:
-            self.snoop = InternalSnoopPort(name='cache_snoop')  # RO cache. Implement the Internal snooping port
+            self.dcache_snoop = InternalSnoopPort(name='cache_snoop')  # RO cache. Implement the Internal snooping port
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -160,9 +160,9 @@ class Cache(Elaboratable):
             bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
 
             m.d.comb += [
-                snoop_addr.eq(self.snoop.addr),  # aux
+                snoop_addr.eq(self.dcache_snoop.addr),  # aux
 
-                snoop_valid.eq(self.snoop.we & self.snoop.valid & self.snoop.ack),
+                snoop_valid.eq(self.dcache_snoop.we & self.dcache_snoop.valid & self.dcache_snoop.ack),
                 snoop_use_cache.eq(snoop_addr[bits_range:] == (self.start_addr >> bits_range)),
                 snoop_tag_match.eq(snoop_addr.tag == self.s2_address.tag),
                 snoop_line_match.eq(snoop_addr.line == self.s2_address.line),

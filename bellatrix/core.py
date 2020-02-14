@@ -162,10 +162,10 @@ class Bellatrix(Elaboratable):
             # connect the data port to the "internal snoop bus"
             # TODO need to change the name...
             cpu.d.comb += [
-                fetch.snoop.addr.eq(self.dport.addr),
-                fetch.snoop.we.eq(self.dport.we),
-                fetch.snoop.valid.eq(self.dport.cyc),
-                fetch.snoop.ack.eq(self.dport.ack)
+                fetch.dcache_snoop.addr.eq(self.dport.addr),
+                fetch.dcache_snoop.we.eq(self.dport.we),
+                fetch.dcache_snoop.valid.eq(self.dport.cyc),
+                fetch.dcache_snoop.ack.eq(self.dport.ack)
             ]
         else:
             fetch = cpu.submodules.fetch = BasicFetchUnit()
