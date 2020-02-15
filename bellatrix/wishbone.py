@@ -72,18 +72,10 @@ class Arbiter(Elaboratable):
 
         bselected = aports[bus_pe.o]
 
-        m.d.comb += [
-            self.bus.addr.eq(bselected.addr),
-            self.bus.dat_w.eq(bselected.dat_w),
-            self.bus.sel.eq(bselected.sel),
-            self.bus.we.eq(bselected.we),
-            self.bus.cyc.eq(bselected.cyc),
-            self.bus.stb.eq(bselected.stb),
-            self.bus.cti.eq(bselected.cti),
-            self.bus.bte.eq(bselected.bte),
-            bselected.dat_r.eq(self.bus.dat_r),
-            bselected.ack.eq(self.bus.ack),
-            bselected.err.eq(self.bus.err)
-        ]
+        for name, size, direction in wishbone_layout:
+            if direction is DIR_FANOUT:
+                m.d.comb += getattr(self.bus, name).eq(getattr(bselected, name))
+            else:
+                m.d.comb += getattr(bselected, name).eq(getattr(self.bus, name))
 
         return m
