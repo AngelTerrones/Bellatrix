@@ -426,8 +426,13 @@ class Bellatrix(Elaboratable):
             lsu.x_stall.eq(x.stall)
         ]
         if self.dcache_enable:
-            cpu.d.comb += lsu.x_fence_i.eq(x.valid & x.endpoint_a.fence_i)
-            x.add_stall_source(x.valid & x.endpoint_a.fence_i & m.valid & m.endpoint_a.store)
+            cpu.d.comb += [
+                lsu.x_fence.eq(x.valid & x.endpoint_a.fence),
+                lsu.x_fence_i.eq(x.valid & x.endpoint_a.fence_i)
+            ]
+            # the first stall is for the first cycle of the new store
+            # the second stall is for the data stored in the write buffer: we have to wait
+            x.add_stall_source(x.valid & (x.endpoint_a.fence_i | x.endpoint_a.fence) & m.valid & m.endpoint_a.store)
             x.add_stall_source(x.valid & lsu.x_busy)
         if self.enable_rv32m:
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
@@ -623,6 +628,7 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.mret.eq(decoder.mret),
                 d.endpoint_b.illegal.eq(decoder.illegal),
                 d.endpoint_b.fence_i.eq(decoder.fence_i),
+                d.endpoint_b.fence.eq(decoder.fence),
                 d.endpoint_b.multiplier.eq(decoder.multiply),
                 d.endpoint_b.divider.eq(decoder.divide),
                 d.endpoint_b.prediction.eq(d.endpoint_a.prediction),

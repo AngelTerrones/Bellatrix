@@ -158,6 +158,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         self.end_addr     = cache_kwargs['end_addr']
         self.nwords       = cache_kwargs['nwords']
         self.x_fence_i    = Signal()    # input
+        self.x_fence      = Signal()    # input
         self.x_busy       = Signal()    # input
         self.m_addr       = Signal(32)  # input
         self.m_load       = Signal()    # input
@@ -310,7 +311,7 @@ class CachedLSU(LSUInterface, Elaboratable):
 
         # --------------------------------------------------
         # extra logic
-        with m.If(self.x_fence_i):
+        with m.If(self.x_fence_i | self.x_fence):
             m.d.comb += self.x_busy.eq(wbuffer.r_rdy)
         with m.Elif(x_use_cache):
             m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)

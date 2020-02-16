@@ -57,6 +57,7 @@ class DecoderUnit(Elaboratable):
         self.ebreak          = Signal()    # output
         self.mret            = Signal()    # output
         self.fence_i         = Signal()    # output
+        self.fence           = Signal()    # output
         self.illegal         = Signal()    # output
         self.multiply        = Signal()    # output
         self.divide          = Signal()    # output
@@ -74,7 +75,6 @@ class DecoderUnit(Elaboratable):
         bimm12      = Signal((13, True))
         uimm20      = Signal(20)
         jimm20      = Signal((21, True))
-        fence       = Signal()
         itype       = Signal(Type)
         instruction = self.instruction
 
@@ -232,7 +232,7 @@ class DecoderUnit(Elaboratable):
             self.fence_i.eq(match([
                 (Opcode.FENCE, Funct3.FENCEI, None, None)
             ])),
-            fence.eq(match([
+            self.fence.eq(match([
                 (Opcode.FENCE, Funct3.FENCE, None, None)
             ])),
             self.substract.eq(match([
@@ -263,7 +263,7 @@ class DecoderUnit(Elaboratable):
             ~reduce(or_, [
                 self.lui, self.aiupc, self.jump, self.branch, self.load, self.store,
                 self.aritmetic, self.logic, self.shift, self.compare, self.csr,
-                self.ecall, self.ebreak, self.mret, self.fence_i, fence, self.multiply,
+                self.ecall, self.ebreak, self.mret, self.fence_i, self.fence, self.multiply,
                 self.divide
             ])
         )
