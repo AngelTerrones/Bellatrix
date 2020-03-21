@@ -41,3 +41,4 @@ tests/riscv-compliance
 *.log
 
 TODO.md
+Debug.md
