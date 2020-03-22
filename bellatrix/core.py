@@ -27,6 +27,7 @@ from .decoder import DecoderUnit
 from .multiplier import Multiplier
 from .divider import Divider
 from .predictor import BranchPredictor
+from .debug.trigger import TriggerModule
 
 
 class Bellatrix(Elaboratable):
@@ -53,27 +54,32 @@ class Bellatrix(Elaboratable):
                  dcache_nwords: int = 8,
                  dcache_nways: int = 1,
                  dcache_start: int = 0x8000_0000,
-                 dcache_end: int = 0xffff_ffff
+                 dcache_end: int = 0xffff_ffff,
+                 # trigger module
+                 trigger_enable: bool = False,
+                 trigger_ntriggers: int = 4
                  ) -> None:
         # ----------------------------------------------------------------------
-        self.reset_address    = core_reset_address
-        self.enable_rv32m     = isa_enable_rv32m
-        self.enable_extra_csr = isa_enable_extra_csr
-        self.enable_user_mode = isa_enable_user_mode
-        self.predictor_enable = predictor_enable
-        self.predictor_size   = predictor_size
-        self.icache_enable    = icache_enable
-        self.icache_nlines    = icache_nlines
-        self.icache_nwords    = icache_nwords
-        self.icache_nways     = icache_nways
-        self.icache_start     = icache_start
-        self.icache_end       = icache_end
-        self.dcache_enable    = dcache_enable
-        self.dcache_nlines    = dcache_nlines
-        self.dcache_nwords    = dcache_nwords
-        self.dcache_nways     = dcache_nways
-        self.dcache_start     = dcache_start
-        self.dcache_end       = dcache_end
+        self.reset_address     = core_reset_address
+        self.enable_rv32m      = isa_enable_rv32m
+        self.enable_extra_csr  = isa_enable_extra_csr
+        self.enable_user_mode  = isa_enable_user_mode
+        self.predictor_enable  = predictor_enable
+        self.predictor_size    = predictor_size
+        self.icache_enable     = icache_enable
+        self.icache_nlines     = icache_nlines
+        self.icache_nwords     = icache_nwords
+        self.icache_nways      = icache_nways
+        self.icache_start      = icache_start
+        self.icache_end        = icache_end
+        self.dcache_enable     = dcache_enable
+        self.dcache_nlines     = dcache_nlines
+        self.dcache_nwords     = dcache_nwords
+        self.dcache_nways      = dcache_nways
+        self.dcache_start      = dcache_start
+        self.dcache_end        = dcache_end
+        self.trigger_enable    = trigger_enable
+        self.trigger_ntriggers = trigger_ntriggers
         # kwargs for units
         self.exception_unit_kw = dict(enable_rv32m=self.enable_rv32m,
                                       enable_extra_csr=self.enable_extra_csr,
@@ -178,6 +184,10 @@ class Bellatrix(Elaboratable):
             divider    = cpu.submodules.divider    = Divider()
         if self.predictor_enable:
             predictor = cpu.submodules.predictor = BranchPredictor(self.predictor_size)
+        if self.trigger_enable:
+            trigger = cpu.submodules.trigger = TriggerModule(privmode=exception.m_privmode,
+                                                             ntriggers=self.trigger_ntriggers,
+                                                             enable_user_mode=self.enable_user_mode)
         # ----------------------------------------------------------------------
         # register file (GPR)
         gprf     = Memory(width=32, depth=32)
@@ -188,6 +198,8 @@ class Bellatrix(Elaboratable):
         # ----------------------------------------------------------------------
         # CSR
         csr.add_csr_from_list(exception.csr.csr_list)
+        if self.trigger_enable:
+            csr.add_csr_from_list(trigger.csr_list)
         csr_port = csr.create_port()
         # ----------------------------------------------------------------------
         # forward declaration of signals
@@ -416,13 +428,17 @@ class Bellatrix(Elaboratable):
             data_sel.x_store_data.eq(x.endpoint_a.src_data2),
         ]
 
+        x_valid = x.valid
+        if self.trigger_enable:
+            x_valid = x.valid & ~trigger.trap
+
         cpu.d.comb += [
             lsu.x_addr.eq(adder.result),
             lsu.x_data_w.eq(data_sel.x_data_w),
             lsu.x_store.eq(x.endpoint_a.store),
             lsu.x_load.eq(x.endpoint_a.load),
             lsu.x_byte_sel.eq(data_sel.x_byte_sel),
-            lsu.x_valid.eq(x.valid & ~data_sel.x_misaligned),
+            lsu.x_valid.eq(x_valid & ~data_sel.x_misaligned),
             lsu.x_stall.eq(x.stall)
         ]
         if self.dcache_enable:
@@ -436,6 +452,19 @@ class Bellatrix(Elaboratable):
             x.add_stall_source(x.valid & lsu.x_busy)
         if self.enable_rv32m:
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
+        if self.trigger_enable:
+            cpu.d.comb += [
+                trigger.x_pc.eq(x.endpoint_a.pc),
+                trigger.x_bus_addr.eq(lsu.x_addr),
+                trigger.x_store.eq(lsu.x_store),
+                trigger.x_load.eq(lsu.x_load),
+                trigger.x_valid.eq(x.valid)
+            ]
+        # ebreak logic
+        x_ebreak = x.endpoint_a.ebreak
+        if self.trigger_enable:
+            x_ebreak = x_ebreak | trigger.trap
+
         x.add_kill_source(exception.m_exception & m.valid)
         x.add_kill_source(m.endpoint_a.mret & m.valid)
         x.add_kill_source(m_kill_bj)
@@ -526,7 +555,6 @@ class Bellatrix(Elaboratable):
             exception.m_store.eq(m.endpoint_a.store),
             exception.m_valid.eq(m.valid)
         ]
-
         m.add_stall_source(m.valid & lsu.m_busy)
         if self.enable_rv32m:
             m.add_stall_source(divider.busy)
@@ -660,7 +688,7 @@ class Bellatrix(Elaboratable):
                 x.endpoint_b.fetch_error.eq(x.endpoint_a.fetch_error),
                 x.endpoint_b.fetch_badaddr.eq(x.endpoint_a.fetch_badaddr),
                 x.endpoint_b.ecall.eq(x.endpoint_a.ecall),
-                x.endpoint_b.ebreak.eq(x.endpoint_a.ebreak),
+                x.endpoint_b.ebreak.eq(x_ebreak),
                 x.endpoint_b.mret.eq(x.endpoint_a.mret),
                 x.endpoint_b.illegal.eq(x.endpoint_a.illegal),
                 x.endpoint_b.ls_misalign.eq(data_sel.x_misaligned),

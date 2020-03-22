@@ -16,7 +16,7 @@ logo = r'''--------------------------------------------------
     A 32-bit RISC-V CPU based on nMigen
 --------------------------------------------------'''
 current_path = os.path.dirname(os.path.realpath(__file__))
-cpu_variants = ['minimal', 'lite', 'standard', 'full', 'custom']
+cpu_variants = ['minimal', 'lite', 'standard', 'full', 'minimal_debug', 'custom']
 
 
 def load_config(variant: str, configfile: str) -> Dict:
