@@ -197,9 +197,9 @@ class Bellatrix(Elaboratable):
         cpu.submodules += gprf_rp1, gprf_rp2, gprf_wp
         # ----------------------------------------------------------------------
         # CSR
-        csr.add_csr_from_list(exception.csr.csr_list)
+        csr.add_csr_from_list(exception.get_csrs())
         if self.trigger_enable:
-            csr.add_csr_from_list(trigger.csr_list)
+            csr.add_csr_from_list(trigger.get_csrs())
         csr_port = csr.create_port()
         # ----------------------------------------------------------------------
         # forward declaration of signals
@@ -226,9 +226,9 @@ class Bellatrix(Elaboratable):
 
         # select next pc
         with cpu.If(exception.m_exception & m.valid):
-            cpu.d.comb += a_next_pc.eq(exception.csr.mtvec.read)  # exception
+            cpu.d.comb += a_next_pc.eq(exception.mtvec.read)  # exception
         with cpu.Elif(m.endpoint_a.mret & m.valid):
-            cpu.d.comb += a_next_pc.eq(exception.csr.mepc.read)  # mret
+            cpu.d.comb += a_next_pc.eq(exception.mepc.read)  # mret
 
         if self.predictor_enable:
             with cpu.Elif((m.endpoint_a.prediction & m.endpoint_a.branch) & ~m.endpoint_a.take_jmp_branch & m.valid):

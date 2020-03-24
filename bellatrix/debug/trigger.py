@@ -4,6 +4,7 @@ from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
 from ..csr import CSR
+from ..csr import AutoCSR
 from ..isa import CSRIndex
 from ..isa import basic_layout
 from ..isa import tdata1_layout
@@ -43,7 +44,7 @@ mcontrol_layout = [
 ]
 
 
-class TriggerModule(Elaboratable):
+class TriggerModule(Elaboratable, AutoCSR):
     def __init__(self,
                  privmode: Signal,
                  ntriggers: int,
@@ -56,7 +57,6 @@ class TriggerModule(Elaboratable):
         self.tselect  = CSR(CSRIndex.TSELECT, 'tselect', basic_layout)
         self.tdata1   = CSR(CSRIndex.TDATA1, 'tdata1', tdata1_layout)
         self.tdata2   = CSR(CSRIndex.TDATA2, 'tdata2', basic_layout)
-        self.csr_list = [self.tselect, self.tdata1, self.tdata2]
         # IO
         self.x_pc       = Signal(32)
         self.x_bus_addr = Signal(32)
