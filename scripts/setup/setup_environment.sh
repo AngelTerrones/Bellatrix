@@ -20,5 +20,7 @@ pip3 install flake8 rope wheel mypy
 pip3 install pyyaml
 echo -e ${BYellow}"Installing nMigen"${Color_Off}
 pip3 install git+https://github.com/nmigen/nmigen.git
+echo -e ${BYellow}"Installing nMigen-SoC (force nmigen version)"${Color_Off}
+pip3 install git+https://github.com/nmigen/nmigen-soc/ --no-dependencies
 deactivate
 echo -e ${BGreen}"Virtualenv setup: DONE"${Color_Off}

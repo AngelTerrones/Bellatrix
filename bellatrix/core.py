@@ -4,6 +4,7 @@ from nmigen import Module
 from nmigen import Memory
 from nmigen import Elaboratable
 from nmigen.build import Platform
+from nmigen_soc.wishbone.bus import Interface
 from typing import List
 from .csr import CSRFile
 from .stage import Stage
@@ -22,7 +23,6 @@ from .layout import _dx_layout
 from .layout import _xm_layout
 from .layout import _mw_layout
 from .exception import ExceptionUnit
-from .wishbone import Wishbone
 from .decoder import DecoderUnit
 from .multiplier import Multiplier
 from .divider import Divider
@@ -96,8 +96,8 @@ class Bellatrix(Elaboratable):
                                   end_addr=self.dcache_end)
         # ----------------------------------------------------------------------
         # IO
-        self.iport              = Wishbone(name='iport')
-        self.dport              = Wishbone(name='dport')
+        self.iport              = Interface(addr_width=32, data_width=32, granularity=32, features=['err', 'cti', 'bte'], name='iport')
+        self.dport              = Interface(addr_width=32, data_width=32, granularity=8,  features=['err', 'cti', 'bte'], name='dport')
         self.external_interrupt = Signal()  # input
         self.timer_interrupt    = Signal()  # input
         self.software_interrupt = Signal()  # input
@@ -105,7 +105,7 @@ class Bellatrix(Elaboratable):
     def port_list(self) -> List:
         return [
             # instruction port
-            self.iport.addr,
+            self.iport.adr,
             self.iport.dat_w,
             self.iport.sel,
             self.iport.we,
@@ -117,7 +117,7 @@ class Bellatrix(Elaboratable):
             self.iport.ack,
             self.iport.err,
             # data port
-            self.dport.addr,
+            self.dport.adr,
             self.dport.dat_w,
             self.dport.sel,
             self.dport.we,
@@ -168,7 +168,7 @@ class Bellatrix(Elaboratable):
             # connect the data port to the "internal snoop bus"
             # TODO need to change the name...
             cpu.d.comb += [
-                fetch.dcache_snoop.addr.eq(self.dport.addr),
+                fetch.dcache_snoop.addr.eq(self.dport.adr),
                 fetch.dcache_snoop.we.eq(self.dport.we),
                 fetch.dcache_snoop.valid.eq(self.dport.cyc),
                 fetch.dcache_snoop.ack.eq(self.dport.ack)

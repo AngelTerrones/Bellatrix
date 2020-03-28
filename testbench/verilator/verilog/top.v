@@ -62,7 +62,7 @@ module top (
     wire         software_interrupt;
 
     bellatrix_core cpu (// Outputs
-                        .iport__addr        (iport__addr[31:0]),
+                        .iport__adr        (iport__addr[31:0]),
                         .iport__dat_w       (iport__dat_w),
                         .iport__sel         (iport__sel),
                         .iport__cyc         (iport__cyc),
@@ -70,7 +70,7 @@ module top (
                         .iport__we          (iport__we),
                         .iport__cti         (iport__cti),
                         .iport__bte         (iport__bte),
-                        .dport__addr        (dport__addr[31:0]),
+                        .dport__adr        (dport__addr[31:0]),
                         .dport__dat_w       (dport__dat_w[31:0]),
                         .dport__sel         (dport__sel[3:0]),
                         .dport__cyc         (dport__cyc),
