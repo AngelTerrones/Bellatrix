@@ -19,7 +19,7 @@ current_path = os.path.dirname(os.path.realpath(__file__))
 cpu_variants = ['minimal', 'lite', 'standard', 'full', 'minimal_debug', 'custom']
 
 
-def load_config(variant: str, configfile: str) -> Dict:
+def load_config(variant: str, configfile: str, verbose: bool) -> Dict:
     # default path to configurations
     if variant != 'custom':
         configfile  = '{}/configurations/bellatrix_{}.yml'.format(current_path, variant)
@@ -31,7 +31,8 @@ def load_config(variant: str, configfile: str) -> Dict:
     config = {}
 
     # print configuration
-    print('''\033[1;33m{}\033[0m
+    if verbose:
+        print('''\033[1;33m{}\033[0m
 
 \033[0;32mConfiguration\033[0;0m
 Variant name: {}
@@ -39,27 +40,27 @@ Path config file: {}
 
 \033[0;32mBuild parameters\033[0;0m'''.format(logo, variant, configfile))
 
-    # translate and print parameters
-    for key, item in core_config.items():
-        if isinstance(item, dict):
-            print(f'{key}:')
-            for k2, i2 in item.items():
-                config['{}_{}'.format(key, k2)] = i2
-                if isinstance(i2, int) and not isinstance(i2, bool):
-                    print(f'- {k2}: {i2} ({hex(i2)})')
-                else:
-                    print(f'- {k2}: {i2}')
-        else:
-            config[key] = item
-            print(f'{key}: {item}')
-    print('--------------------------------------------------')
+        # translate and print parameters
+        for key, item in core_config.items():
+            if isinstance(item, dict):
+                print(f'{key}:')
+                for k2, i2 in item.items():
+                    config['{}_{}'.format(key, k2)] = i2
+                    if isinstance(i2, int) and not isinstance(i2, bool):
+                        print(f'- {k2}: {i2} ({hex(i2)})')
+                    else:
+                        print(f'- {k2}: {i2}')
+            else:
+                config[key] = item
+                print(f'{key}: {item}')
+        print('--------------------------------------------------')
 
     return config
 
 
 def generate_verilog(parser, args):
     # load configuration
-    core_config = load_config(args.variant, os.path.realpath(args.config_file))
+    core_config = load_config(args.variant, os.path.realpath(args.config_file), args.verbose)
 
     # create the core
     cpu = Bellatrix(**core_config)
@@ -90,6 +91,11 @@ def main() -> None:
         '--config-file',
         default='',
         help='configuration file for custom variants'
+    )
+    parser.add_argument(
+        '--verbose',
+        action='store_true',
+        help='print the configuration file'
     )
     # --------------------------------------------------------------------------
     cli.main_parser(parser)

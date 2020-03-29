@@ -22,8 +22,9 @@ VCOREDIR = $(ROOT)/testbench/verilator
 
 CORE_FILES=$(shell find bellatrix -name "*.py")
 CLI_FILE=$(ROOT)/cli.py
+VERBOSE=--verbose
 
-VARIANTS=minimal lite standard full
+VARIANTS=minimal lite standard full minimal_debug
 GEN_FOLDER=$(BFOLDER)/$(VARIANT)
 
 OBJ_FOLDER_DEL=$(shell find $(BFOLDER) -name "*obj_*")
@@ -112,22 +113,22 @@ setup-environment:
 generate-core: $(GEN_FOLDER)/bellatrix_core.v
 
 generate-core-all:
-	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant);)
+	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant) VERBOSE= --no-print-directory ;)
 
 build-core: generate-core
 	@mkdir -p $(BFOLDER)
 	+@$(SUBMAKE) -C $(VCOREDIR)
 
 build-core-all:
-	+@$(foreach variant, $(VARIANTS), make build-core VARIANT=$(variant);)
+	+@$(foreach variant, $(VARIANTS), make build-core VARIANT=$(variant) VERBOSE=;)
 # ------------------------------------------------------------------------------
 # HIDDEN
 # ------------------------------------------------------------------------------
 $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatrix_$(VARIANT).yml
 	@mkdir -p $(GEN_FOLDER)
 	@echo -e "Generate core:" $(BGreen)$(VARIANT)$(Color_Off)
-	@PYTHONPATH=$(ROOT) python $(CLI_FILE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
-	@echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
+	@python $(CLI_FILE) $(VERBOSE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
+#   @echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
 # ------------------------------------------------------------------------------
 # clean
