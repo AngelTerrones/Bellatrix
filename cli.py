@@ -60,7 +60,11 @@ Path config file: {}
 
 
 def generate_testbench(args, config):
-    path = os.path.dirname(args.generate_file.name)
+    try:
+        path = os.path.dirname(args.generate_file.name)
+    except AttributeError:
+        return
+
     icache_enable = config['icache_enable']
     dcache_enable = config['dcache_enable']
     data = dict(
