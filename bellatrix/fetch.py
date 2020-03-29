@@ -13,7 +13,7 @@ from .wishbone import Arbiter
 
 class FetchUnitInterface:
     def __init__(self) -> None:
-        self.iport         = Interface(addr_width=32, data_width=32, granularity=32, features=['err', 'cti', 'bte'], name='iport')
+        self.iport         = Interface(addr_width=32, data_width=32, granularity=32, features=['err'], name='iport')
         self.a_pc          = Signal(32)  # input
         self.a_stall       = Signal()    # input. (needed because the unit uses the pc@address stage)
         self.a_valid       = Signal()    # input. (needed because the unit uses the pc@address stage)
@@ -49,8 +49,6 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
             self.iport.dat_w.eq(0),
             self.iport.sel.eq(0),
             self.iport.we.eq(0),
-            self.iport.cti.eq(CycleType.CLASSIC),
-            self.iport.bte.eq(0)
         ]
 
         # in case of error, make the instruction a NOP
@@ -78,6 +76,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
     def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
+        self.iport        = Interface(addr_width=32, data_width=32, granularity=32, features=['err', 'bte', 'cti'], name='iport')
         self.cache_kwargs = cache_kwargs
         self.start_addr   = cache_kwargs['start_addr']
         self.end_addr     = cache_kwargs['end_addr']

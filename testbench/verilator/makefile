@@ -10,7 +10,7 @@ ROOT		?= $(shell cd ../../; pwd)
 RTLDIR		?= $(ROOT)/build
 TBDIR		:= verilog
 VSOURCES	:= $(shell find $(RTLDIR) $(TBDIR) -name "*.v")
-VTOP		:= $(TBDIR)/top.v
+VTOP		:= $(RTLDIR)/top.v
 #--------------------------------------------------
 VOUT		?= $(ROOT)/build
 VOBJ		:= $(VOUT)/obj_dir_$(EXE)

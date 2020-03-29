@@ -116,7 +116,6 @@ generate-core-all:
 	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant) VERBOSE= --no-print-directory ;)
 
 build-core: generate-core
-	@mkdir -p $(BFOLDER)
 	+@$(SUBMAKE) -C $(VCOREDIR)
 
 build-core-all:

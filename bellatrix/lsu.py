@@ -83,7 +83,7 @@ class DataFormat(Elaboratable):
 class LSUInterface:
     def __init__(self) -> None:
         # Misaligned exception detected in X stage
-        self.dport         = Interface(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'], name='dport')
+        self.dport         = Interface(addr_width=32, data_width=32, granularity=8, features=['err'], name='dport')
         self.x_addr        = Signal(32)  # input
         self.x_data_w      = Signal(32)  # input
         self.x_store       = Signal()    # input
@@ -126,10 +126,6 @@ class BasicLSU(LSUInterface, Elaboratable):
                 self.dport.cyc.eq(1),
                 self.dport.stb.eq(1)
             ]
-        m.d.comb += [
-            self.dport.cti.eq(CycleType.CLASSIC),
-            self.dport.bte.eq(0)
-        ]
 
         # exceptions
         with m.If(self.dport.cyc & self.dport.err):
@@ -153,6 +149,7 @@ class CachedLSU(LSUInterface, Elaboratable):
     def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
+        self.dport        = Interface(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'], name='dport')
         self.cache_kwargs = cache_kwargs
         self.start_addr   = cache_kwargs['start_addr']
         self.end_addr     = cache_kwargs['end_addr']

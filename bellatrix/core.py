@@ -95,41 +95,26 @@ class Bellatrix(Elaboratable):
                                   start_addr=self.dcache_start,
                                   end_addr=self.dcache_end)
         # ----------------------------------------------------------------------
+        i_features = ['err']
+        if self.icache_enable:
+            i_features.extend(['cti', 'bte'])
+        d_features = ['err']
+        if self.icache_enable:
+            d_features.extend(['cti', 'bte'])
         # IO
-        self.iport              = Interface(addr_width=32, data_width=32, granularity=32, features=['err', 'cti', 'bte'], name='iport')
-        self.dport              = Interface(addr_width=32, data_width=32, granularity=8,  features=['err', 'cti', 'bte'], name='dport')
+        self.iport              = Interface(addr_width=32, data_width=32, granularity=32, features=i_features, name='iport')
+        self.dport              = Interface(addr_width=32, data_width=32, granularity=8,  features=d_features, name='dport')
         self.external_interrupt = Signal()  # input
         self.timer_interrupt    = Signal()  # input
         self.software_interrupt = Signal()  # input
 
     def port_list(self) -> List:
+        iport = [getattr(self.iport, name) for name, _, _ in self.iport.layout]
+        dport = [getattr(self.dport, name) for name, _, _ in self.dport.layout]
         return [
-            # instruction port
-            self.iport.adr,
-            self.iport.dat_w,
-            self.iport.sel,
-            self.iport.we,
-            self.iport.cyc,
-            self.iport.stb,
-            self.iport.cti,
-            self.iport.bte,
-            self.iport.dat_r,
-            self.iport.ack,
-            self.iport.err,
-            # data port
-            self.dport.adr,
-            self.dport.dat_w,
-            self.dport.sel,
-            self.dport.we,
-            self.dport.cyc,
-            self.dport.stb,
-            self.dport.cti,
-            self.dport.bte,
-            self.dport.dat_r,
-            self.dport.ack,
-            self.dport.err,
-            # exceptions
-            self.external_interrupt,
+            *iport,  # instruction port
+            *dport,  # data port
+            self.external_interrupt,  # exceptions
             self.timer_interrupt,
             self.software_interrupt
         ]

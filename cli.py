@@ -3,6 +3,7 @@
 import os
 import yaml
 import argparse
+from string import Template
 from nmigen import cli
 from bellatrix.core import Bellatrix
 from typing import Dict
@@ -58,6 +59,39 @@ Path config file: {}
     return config
 
 
+def generate_testbench(args, config):
+    path = os.path.dirname(args.generate_file.name)
+    icache_enable = config['icache_enable']
+    dcache_enable = config['dcache_enable']
+    data = dict(
+        no_icache_assign='''assign iport__cti = 0;
+    assign iport__bte = 0;''',
+        no_icache_port='',
+        no_dcache_assign='''assign dport__cti = 0;
+    assign dport__bte = 0;''',
+        no_dcache_port=''
+    )
+
+    if icache_enable:
+        data['no_icache_assign'] = ''
+        data['no_icache_port'] = '''.iport__cti         (iport__cti),
+                        .iport__bte         (iport__bte),'''
+    if dcache_enable:
+        data['no_dcache_assign'] = ''
+        data['no_dcache_port'] = '''.dport__cti         (dport__cti),
+                        .dport__bte         (dport__bte),'''
+
+    top_template_file = 'testbench/verilator/verilog/top_template'
+
+    with open(top_template_file, 'r') as f:
+        template = Template(f.read())
+
+    template = template.substitute(data)
+
+    with open(path + '/top.v', 'w') as f:
+        f.write(template)
+
+
 def generate_verilog(parser, args):
     # load configuration
     core_config = load_config(args.variant, os.path.realpath(args.config_file), args.verbose)
@@ -68,6 +102,8 @@ def generate_verilog(parser, args):
 
     # generate the verilog file
     cli.main_runner(parser, args, cpu, name='bellatrix_core', ports=ports)
+    # generate the testbench file
+    generate_testbench(args, core_config)
 
 
 def main() -> None:
