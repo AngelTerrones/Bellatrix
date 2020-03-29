@@ -61,6 +61,7 @@ See LICENSE file for full copyright and license information.
   - `extra_tests`: Aditional test for the software, timer and external interrupt interface.
 - `LICENSE`: Two-clause BSD license.
 - `README.md`: This file.
+- `cli.py`: Command line for code generation.
 
 ## RISC-V toolchain
 
@@ -70,28 +71,32 @@ The version used to compile the tests is [riscv64-unknown-elf-gcc-8.3.0-2019.08.
 
 ## Configuration File
 
+The core configuration is done using a YAML file. The folder `configurations` has some configuration examples.
+
 The following parameters are used to configure the core:
 
 | Section     | Property           | Default value | Description
 | ----------- | ------------------ | ------------- | ------------------------------------------
 | `reset`     | `reset_address`    | `0x80000000`  | Reset address
-| `isa`       | `enable_rv32m`     | `True`        | Enable instructions for ISA RV32M
-|             | `enable_extra_csr` | `True`        | Enable implementations of `misa`, `mhartid`, `mipid`, `marchid` and `mvendorid`
+| `isa`       | `enable_rv32m`     | `False`       | Enable instructions for ISA RV32M
+|             | `enable_extra_csr` | `False`       | Enable implementations of `misa`, `mhartid`, `mipid`, `marchid` and `mvendorid`
 |             | `enable_user_mode` | `False`       | Enable User priviledge mode.
-| `predictor` | `enable_predictor` | `True`        | Enable branch predictor implementation
+| `predictor` | `enable_predictor` | `False`       | Enable branch predictor implementation
 |             | `size`             | `4096`        | Size of branch cache (power of 2)
-| `icache`    | `enable`           | `True`        | Enable instruction cache
+| `icache`    | `enable`           | `False`       | Enable instruction cache
 |             | `nlines`           | `512`         | Number of lines (power of 2)
 |             | `nwords`           | `8`           | Number of words per line. Valid: 4, 8 and 16
 |             | `nways`            | `1`           | Associativity. Valid
 |             | `start_addr`       | `0x80000000`  | Start address of cacheable region
 |             | `end_addr`         | `0xffffffff`  | Final address of cacheable region
-| `dcache`    | `enable`           | `True`        | Enable instruction cache
+| `dcache`    | `enable`           | `False`       | Enable instruction cache
 |             | `nlines`           | `512`         | Number of lines (power of 2)
 |             | `nwords`           | `8`           | Number of words per line. Valid: 4, 8 and 16
 |             | `nways`            | `1`           | Associativity. Valid
 |             | `start_addr`       | `0x80000000`  | Start address of cacheable region
 |             | `end_addr`         | `0xffffffff`  | Final address of cacheable region
+| `trigger`   | `enable`           | `False`       | Enable implementation of hardware (trigger) breakpoints
+|             | `ntriggers`        | `4`           | Number of hardware (trigger) breakpoints
 
 ## Core generation.
 ### Dependencies
@@ -110,9 +115,9 @@ Activate the virtualenv:
 > source .venv/bin/activate
 
 Generate the core using a configuration file:
-> make generate-core CONFIG=/path/to/configuration.ini
+> make generate-core VARIANT={minimal,lite,standard,full,minimal_debug,custom}
 
-The verilog file will be in `build/name_of_configuration_file/bellatrix_core.v`
+The verilog file will be in `build/name_of_variant/bellatrix_core.v`
 
 ### Top module pinout
 
@@ -128,8 +133,8 @@ The pinout for the top module, `bellatrix_core`:
 | iport__we          | 1    | Wishbone instruction Write Enable port (output)
 | iport__cyc         | 1    | Wishbone instruction Cycle port (output)
 | iport__stb         | 1    | Wishbone instruction Strobe port (output)
-| iport__cti         | 3    | Wishbone instruction Cycle Type Identifier port (output)
-| iport__bte         | 2    | Wishbone instruction Burst Type Extension port (output)
+| iport__cti         | 3    | Wishbone instruction Cycle Type Identifier port (output) (if icache_enable = True)
+| iport__bte         | 2    | Wishbone instruction Burst Type Extension port (output) (if icache_enable = True)
 | iport__dat_r       | 32   | Wishbone instruction Data Read port (input)
 | iport__ack         | 1    | Wishbone instruction Acknowledge port (input)
 | iport__err         | 1    | Wishbone instruction Error port (input)
@@ -139,8 +144,8 @@ The pinout for the top module, `bellatrix_core`:
 | dport__we          | 1    | Wishbone data Write Enable port (output)
 | dport__cyc         | 1    | Wishbone data Cycle port (output)
 | dport__stb         | 1    | Wishbone data Strobe port (output)
-| dport__cti         | 3    | Wishbone data Cycle Type Identifier port (output)
-| dport__bte         | 2    | Wishbone data Burst Type Extension port (output)
+| dport__cti         | 3    | Wishbone data Cycle Type Identifier port (output) (if dcache_enable = True)
+| dport__bte         | 2    | Wishbone data Burst Type Extension port (output) (if dcache_enable = True)
 | dport__dat_r       | 32   | Wishbone data Data Read port (input)
 | dport__ack         | 1    | Wishbone data Acknowledge port (input)
 | dport__err         | 1    | Wishbone data Error port (input)
@@ -169,20 +174,22 @@ Before running the compliance test suit, benchmarks and extra-tests, define the 
 ### Generate the C++ model and compile it
 To compile the verilator testbench, execute the following command in the root folder of
 the project:
-> $ make build-core CONFIG=/path/to/configuration.ini
+> $ make build-core VARIANT={minimal,lite,standard,full,minimal_debug,custom}
 
 ### Run the compliance tests
 To perform the simulation, execute the following command in the root folder of
 the project:
-> $ make core-sim-compliance CONFIG=/path/to/configuration.ini
+> $ make core-sim-compliance VARIANT={minimal,lite,standard,full,minimal_debug,custom}
 
-All tests should pass, with exception of the `breakpoint` test: no debug module has been implemented.
+Note:
+- The `rv32im` compliance tests requieres enabling the RV32M ISA.
+- The `breakpoint` test in the `rv32mi` compliance group requieres enabling the `trigger` module.
 
 ### Simulate execution of a single ELF file
 
 To execute a single `.elf` file:
 
-> $ ./build/name_of_configuration_file/core.exe --file [ELF file] --timeout [max time] --signature [signature file] --trace
+> $ ./build/name_of_variant/core.exe --file [ELF file] --timeout [max time] --signature [signature file] --trace
 
 #### Parameters of the C++ model
 
@@ -194,7 +201,7 @@ To execute a single `.elf` file:
 [1]: https://riscv.org/specifications/
 [2]: https://riscv.org/specifications/privileged-isa/
 [3]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
-[4]: https://github.com/m-labs/nmigen/
+[4]: https://github.com/nmigen/nmigen/
 [5]: https://www.veripool.org/wiki/verilator
 [7]: https://github.com/riscv/riscv-compliance
 [8]: https://www.sifive.com/boards

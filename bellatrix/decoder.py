@@ -8,7 +8,6 @@ from .isa import Funct7
 from .isa import Funct12
 from .isa import Opcode
 from .isa import PrivMode
-from .configuration.configuration import Configuration
 from functools import reduce
 from operator import or_
 from typing import Tuple, List, Optional
@@ -25,8 +24,8 @@ class Type(IntEnum):
 
 
 class DecoderUnit(Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
-        self.enable_isa_m = configuration.getOption('isa', 'enable_rv32m')
+    def __init__(self, enable_rv32m: bool) -> None:
+        self.enable_rv32m = enable_rv32m
 
         self.instruction     = Signal(32)  # input
         self.gpr_rs1         = Signal(5)   # output
@@ -58,6 +57,7 @@ class DecoderUnit(Elaboratable):
         self.ebreak          = Signal()    # output
         self.mret            = Signal()    # output
         self.fence_i         = Signal()    # output
+        self.fence           = Signal()    # output
         self.illegal         = Signal()    # output
         self.multiply        = Signal()    # output
         self.divide          = Signal()    # output
@@ -75,7 +75,6 @@ class DecoderUnit(Elaboratable):
         bimm12      = Signal((13, True))
         uimm20      = Signal(20)
         jimm20      = Signal((21, True))
-        fence       = Signal()
         itype       = Signal(Type)
         instruction = self.instruction
 
@@ -233,7 +232,7 @@ class DecoderUnit(Elaboratable):
             self.fence_i.eq(match([
                 (Opcode.FENCE, Funct3.FENCEI, None, None)
             ])),
-            fence.eq(match([
+            self.fence.eq(match([
                 (Opcode.FENCE, Funct3.FENCE, None, None)
             ])),
             self.substract.eq(match([
@@ -244,7 +243,7 @@ class DecoderUnit(Elaboratable):
             self.csr_we.eq(~funct3[1] | self.gpr_rs1 != 0),
         ]
 
-        if (self.enable_isa_m):
+        if (self.enable_rv32m):
             m.d.comb += [
                 self.multiply.eq(match([
                     (Opcode.OP, Funct3.MUL, Funct7.MULDIV, None),
@@ -264,7 +263,7 @@ class DecoderUnit(Elaboratable):
             ~reduce(or_, [
                 self.lui, self.aiupc, self.jump, self.branch, self.load, self.store,
                 self.aritmetic, self.logic, self.shift, self.compare, self.csr,
-                self.ecall, self.ebreak, self.mret, self.fence_i, fence, self.multiply,
+                self.ecall, self.ebreak, self.mret, self.fence_i, self.fence, self.multiply,
                 self.divide
             ])
         )

@@ -6,14 +6,13 @@ from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
-from nmigen.lib.fifo import SyncFIFOBuffered
 from nmigen.build import Platform
+from nmigen.lib.fifo import SyncFIFOBuffered
+from nmigen_soc.wishbone.bus import CycleType
+from nmigen_soc.wishbone.bus import Interface
 from .isa import Funct3
-from .wishbone import Arbiter
-from .wishbone import CycleType
-from .wishbone import Wishbone
 from .cache import Cache
-from .configuration.configuration import Configuration
+from .wishbone import Arbiter
 
 
 class DataFormat(Elaboratable):
@@ -84,7 +83,7 @@ class DataFormat(Elaboratable):
 class LSUInterface:
     def __init__(self) -> None:
         # Misaligned exception detected in X stage
-        self.dport         = Wishbone(name='dport')
+        self.dport         = Interface(addr_width=32, data_width=32, granularity=8, features=['err'], name='dport')
         self.x_addr        = Signal(32)  # input
         self.x_data_w      = Signal(32)  # input
         self.x_store       = Signal()    # input
@@ -120,24 +119,20 @@ class BasicLSU(LSUInterface, Elaboratable):
                 ]
         with m.Elif(op & self.x_valid & ~self.x_stall):
             m.d.sync += [
-                self.dport.addr.eq(self.x_addr),
+                self.dport.adr.eq(self.x_addr),
                 self.dport.dat_w.eq(self.x_data_w),
                 self.dport.sel.eq(self.x_byte_sel),
                 self.dport.we.eq(self.x_store),
                 self.dport.cyc.eq(1),
                 self.dport.stb.eq(1)
             ]
-        m.d.comb += [
-            self.dport.cti.eq(CycleType.CLASSIC),
-            self.dport.bte.eq(0)
-        ]
 
         # exceptions
         with m.If(self.dport.cyc & self.dport.err):
             m.d.sync += [
                 self.m_load_error.eq(~self.dport.we),
                 self.m_store_error.eq(self.dport.we),
-                self.m_badaddr.eq(self.dport.addr)
+                self.m_badaddr.eq(self.dport.adr)
             ]
         with m.Elif(~self.m_stall):
             m.d.sync += [
@@ -151,20 +146,20 @@ class BasicLSU(LSUInterface, Elaboratable):
 
 
 class CachedLSU(LSUInterface, Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
+    def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
-        self.nlines     = configuration.getOption('dcache', 'nlines')
-        self.nwords     = configuration.getOption('dcache', 'nwords')
-        self.nways      = configuration.getOption('dcache', 'nways')
-        self.start_addr = configuration.getOption('dcache', 'start_addr')
-        self.end_addr   = configuration.getOption('dcache', 'end_addr')
-
-        self.x_fence_i = Signal()    # input
-        self.x_busy    = Signal()    # input
-        self.m_addr    = Signal(32)  # input
-        self.m_load    = Signal()    # input
-        self.m_store   = Signal()    # input
+        self.dport        = Interface(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'], name='dport')
+        self.cache_kwargs = cache_kwargs
+        self.start_addr   = cache_kwargs['start_addr']
+        self.end_addr     = cache_kwargs['end_addr']
+        self.nwords       = cache_kwargs['nwords']
+        self.x_fence_i    = Signal()    # input
+        self.x_fence      = Signal()    # input
+        self.x_busy       = Signal()    # input
+        self.m_addr       = Signal(32)  # input
+        self.m_load       = Signal()    # input
+        self.m_store      = Signal()    # input
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -178,10 +173,8 @@ class CachedLSU(LSUInterface, Elaboratable):
         wbuffer_din  = Record(wbuffer_layout)
         wbuffer_dout = Record(wbuffer_layout)
 
-        dcache  = m.submodules.dcache  = Cache(nlines=self.nlines, nwords=self.nwords, nways=self.nways,
-                                               start_addr=self.start_addr, end_addr=self.end_addr,
-                                               enable_write=True)
-        arbiter = m.submodules.arbiter = Arbiter()
+        dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
+        arbiter = m.submodules.arbiter = Arbiter(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'])
         wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
 
         wbuffer_port = arbiter.add_port(priority=0)
@@ -230,7 +223,7 @@ class CachedLSU(LSUInterface, Elaboratable):
             with m.Elif(~wbuffer_port.stb):
                 m.d.sync += [
                     wbuffer_port.stb.eq(1),
-                    wbuffer_port.addr.eq(wbuffer_dout.addr),
+                    wbuffer_port.adr.eq(wbuffer_dout.addr),
                     wbuffer_port.dat_w.eq(wbuffer_dout.data),
                     wbuffer_port.sel.eq(wbuffer_dout.sel)
                 ]
@@ -239,7 +232,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                 wbuffer_port.cyc.eq(1),
                 wbuffer_port.stb.eq(1),
                 wbuffer_port.we.eq(1),
-                wbuffer_port.addr.eq(wbuffer_dout.addr),
+                wbuffer_port.adr.eq(wbuffer_dout.addr),
                 wbuffer_port.dat_w.eq(wbuffer_dout.data),
                 wbuffer_port.sel.eq(wbuffer_dout.sel)
             ]
@@ -270,13 +263,13 @@ class CachedLSU(LSUInterface, Elaboratable):
 
         # connect cache to arbiter
         m.d.comb += [
-            cache_port.addr.eq(dcache.bus_addr),
+            cache_port.adr.eq(dcache.bus_addr),
             cache_port.dat_w.eq(0),
             cache_port.sel.eq(0),
             cache_port.we.eq(0),
             cache_port.cyc.eq(dcache.bus_valid),
             cache_port.stb.eq(dcache.bus_valid),
-            cache_port.cti.eq(Mux(dcache.bus_last, CycleType.END, CycleType.INCREMENT)),
+            cache_port.cti.eq(Mux(dcache.bus_last, CycleType.END_OF_BURST, CycleType.INCR_BURST)),
             cache_port.bte.eq(log2_int(self.nwords) - 1),
             dcache.bus_data.eq(cache_port.dat_r),
             dcache.bus_ack.eq(cache_port.ack),
@@ -301,7 +294,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                 ]
         with m.Elif(op & self.x_valid & ~self.x_stall & ~x_use_cache):
             m.d.sync += [
-                bare_port.addr.eq(self.x_addr),
+                bare_port.adr.eq(self.x_addr),
                 bare_port.dat_w.eq(self.x_data_w),
                 bare_port.sel.eq(self.x_byte_sel),
                 bare_port.we.eq(self.x_store),
@@ -315,7 +308,7 @@ class CachedLSU(LSUInterface, Elaboratable):
 
         # --------------------------------------------------
         # extra logic
-        with m.If(self.x_fence_i):
+        with m.If(self.x_fence_i | self.x_fence):
             m.d.comb += self.x_busy.eq(wbuffer.r_rdy)
         with m.Elif(x_use_cache):
             m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)
@@ -344,7 +337,7 @@ class CachedLSU(LSUInterface, Elaboratable):
             m.d.sync += [
                 self.m_load_error.eq(~self.dport.we),
                 self.m_store_error.eq(self.dport.we),
-                self.m_badaddr.eq(self.dport.addr)
+                self.m_badaddr.eq(self.dport.adr)
             ]
         with m.Elif(~self.m_stall):
             m.d.sync += [

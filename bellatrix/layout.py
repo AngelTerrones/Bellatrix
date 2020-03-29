@@ -45,6 +45,7 @@ _dx_layout = [
     ('mret', 1),
     ('illegal', 1),
     ('fence_i', 1),
+    ('fence', 1),
     ('multiplier', 1),
     ('divider', 1),
     ('prediction', 1),

@@ -21,11 +21,11 @@ BFOLDER	 = $(ROOT)/build
 VCOREDIR = $(ROOT)/testbench/verilator
 
 CORE_FILES=$(shell find bellatrix -name "*.py")
-BUILD_FILE=$(ROOT)/scripts/build.py
+CLI_FILE=$(ROOT)/cli.py
+VERBOSE=--verbose
 
-CFG_FILES=$(shell find configurations -name "*.ini")
-CFG_BASENAME=$(basename $(notdir $(CONFIG)))
-GEN_FOLDER=$(BFOLDER)/$(CFG_BASENAME)
+VARIANTS=minimal lite standard full minimal_debug
+GEN_FOLDER=$(BFOLDER)/$(VARIANT)
 
 OBJ_FOLDER_DEL=$(shell find $(BFOLDER) -name "*obj_*")
 
@@ -39,7 +39,7 @@ export RISCV_PREFIX ?= $(RVGCC_PATH)/riscv64-unknown-elf-
 export TARGET_FOLDER = $(VCOREDIR)
 export RTLDIR = $(GEN_FOLDER)
 export VOUT = $(GEN_FOLDER)
-export BCONFIG = $(CONFIG)
+export VARIANT
 
 # ------------------------------------------------------------------------------
 # targetsEXE
@@ -89,16 +89,16 @@ core-sim-compliance-rv32im: build-core
 	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32im RISCV_ISA=rv32im
 
 core-sim-compliance-rv32mi: build-core
-	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32mi RISCV_ISA=rv32mi
+	-@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32mi
 
 core-sim-compliance-rv32ui: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32ui
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32ui
 
 core-sim-compliance-rv32Zicsr: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zicsr
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32Zicsr
 
 core-sim-compliance-rv32Zifencei: build-core
-	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32ui RISCV_ISA=rv32Zifencei
+	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32Zifencei
 
 build-extra-tests:
 	$(SUBMAKE) -C tests/extra-tests
@@ -113,23 +113,21 @@ setup-environment:
 generate-core: $(GEN_FOLDER)/bellatrix_core.v
 
 generate-core-all:
-	+@$(foreach cfg, $(CFG_FILES), make generate-core CONFIG=$(cfg);)
+	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant) VERBOSE= --no-print-directory ;)
 
 build-core: generate-core
-	@mkdir -p $(BFOLDER)
 	+@$(SUBMAKE) -C $(VCOREDIR)
 
 build-core-all:
-	+@$(foreach cfg, $(CFG_FILES), make build-core CONFIG=$(cfg);)
+	+@$(foreach variant, $(VARIANTS), make build-core VARIANT=$(variant) VERBOSE=;)
 # ------------------------------------------------------------------------------
 # HIDDEN
 # ------------------------------------------------------------------------------
-$(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(BUILD_FILE) $(CONFIG)
+$(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatrix_$(VARIANT).yml
 	@mkdir -p $(GEN_FOLDER)
-	@echo -e "Generate core:" $(BGreen)$(shell basename $(CONFIG))$(Color_Off)
-	@PYTHONPATH=$(ROOT) python scripts/build.py --config-file $(CONFIG) generate $(GEN_FOLDER)/bellatrix_core.v
-	@sed -i '/verilog_initial_trigger/d' $(GEN_FOLDER)/bellatrix_core.v
-	@echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
+	@echo -e "Generate core:" $(BGreen)$(VARIANT)$(Color_Off)
+	@python $(CLI_FILE) $(VERBOSE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
+#   @echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
 # ------------------------------------------------------------------------------
 # clean

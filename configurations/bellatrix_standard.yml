@@ -1,0 +1,22 @@
+# Bellatrix standard configuration
+{
+    core: {
+        reset_address: 0x80000000,
+    },
+    isa: {
+        enable_rv32m: True,
+        enable_extra_csr: True,
+        enable_user_mode: False,
+    },
+    predictor: {
+        enable: True,
+        size: 64
+    },
+    icache: {
+        enable: False
+    },
+    dcache: {
+        enable: False
+    }
+
+}

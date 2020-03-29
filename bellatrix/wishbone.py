@@ -2,51 +2,27 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Array
 from nmigen import Elaboratable
-from nmigen.hdl.rec import DIR_FANIN
 from nmigen.hdl.rec import DIR_FANOUT
 from nmigen.lib.coding import PriorityEncoder
 from nmigen.build import Platform
+from nmigen_soc.wishbone.bus import Interface
 from typing import Dict
 
 
-class CycleType:
-    CLASSIC   = 0
-    CONSTANT  = 1
-    INCREMENT = 2
-    END       = 7
-
-
-wishbone_layout = [
-    ('addr',  32, DIR_FANOUT),
-    ('dat_w', 32, DIR_FANOUT),
-    ('sel',    4, DIR_FANOUT),
-    ('we',     1, DIR_FANOUT),
-    ('cyc',    1, DIR_FANOUT),
-    ('stb',    1, DIR_FANOUT),
-    ('cti',    3, DIR_FANOUT),
-    ('bte',    2, DIR_FANOUT),
-    ('dat_r', 32, DIR_FANIN),
-    ('ack',    1, DIR_FANIN),
-    ('err',    1, DIR_FANIN)
-]
-
-
-class Wishbone(Record):
-    def __init__(self, name=None) -> None:
-        super().__init__(wishbone_layout, name=name)
-        # resetless
-        self.addr.reset_less  = True
-        self.dat_w.reset_less = True
-        self.sel.reset_less   = True
-        self.we.reset_less    = True
-        self.cti.reset_less   = True
-        self.bte.reset_less   = True
-
-
 class Arbiter(Elaboratable):
-    def __init__(self) -> None:
-        self.bus = Wishbone(name='arbiter_s_bus')
+    def __init__(self, addr_width, data_width, granularity=None, features=frozenset()) -> None:
+        self.bus = Interface(addr_width=addr_width,
+                             data_width=data_width,
+                             granularity=granularity,
+                             features=features,
+                             name='arbiter_bus'
+                             )
         self._ports: Dict[int, Record] = dict()
+
+        self.addr_w      = addr_width
+        self.data_w      = data_width
+        self.granularity = granularity
+        self.features    = features
 
     def add_port(self, priority: int) -> Record:
         # check if the priority is a number
@@ -56,7 +32,12 @@ class Arbiter(Elaboratable):
         if priority in self._ports:
             raise ValueError('Duplicated priority: {}'.format(priority))
 
-        port = self._ports[priority] = Wishbone(name='arbiter_m{}'.format(priority))
+        port = self._ports[priority] = Interface(addr_width=self.addr_w,
+                                                 data_width=self.data_w,
+                                                 granularity=self.granularity,
+                                                 features=self.features,
+                                                 name=f'arbiter_m{priority}'
+                                                 )
         return port
 
     def elaborate(self, platform: Platform) -> Module:
@@ -72,18 +53,10 @@ class Arbiter(Elaboratable):
 
         bselected = aports[bus_pe.o]
 
-        m.d.comb += [
-            self.bus.addr.eq(bselected.addr),
-            self.bus.dat_w.eq(bselected.dat_w),
-            self.bus.sel.eq(bselected.sel),
-            self.bus.we.eq(bselected.we),
-            self.bus.cyc.eq(bselected.cyc),
-            self.bus.stb.eq(bselected.stb),
-            self.bus.cti.eq(bselected.cti),
-            self.bus.bte.eq(bselected.bte),
-            bselected.dat_r.eq(self.bus.dat_r),
-            bselected.ack.eq(self.bus.ack),
-            bselected.err.eq(self.bus.err)
-        ]
+        for name, size, direction in self.bus.layout:
+            if direction is DIR_FANOUT:
+                m.d.comb += getattr(self.bus, name).eq(getattr(bselected, name))
+            else:
+                m.d.comb += getattr(bselected, name).eq(getattr(self.bus, name))
 
         return m

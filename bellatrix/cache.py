@@ -11,6 +11,18 @@ from nmigen import Elaboratable
 from nmigen.lib.coding import Encoder
 from nmigen.utils import log2_int
 from nmigen.build import Platform
+from nmigen.hdl.rec import DIR_FANIN
+
+
+class InternalSnoopPort(Record):
+    def __init__(self, name=None) -> None:
+        _layout = [
+            ('addr', 32, DIR_FANIN),
+            ('we',    1, DIR_FANIN),
+            ('valid', 1, DIR_FANIN),
+            ('ack',   1, DIR_FANIN),
+        ]
+        super().__init__(_layout, name=name)
 
 
 class Cache(Elaboratable):
@@ -34,29 +46,31 @@ class Cache(Elaboratable):
         self.nlines       = nlines
         self.nwords       = nwords
         self.nways        = nways
+        self.start_addr   = start_addr
+        self.end_addr     = end_addr
         offset_bits       = log2_int(nwords)
         line_bits         = log2_int(nlines)
         addr_bits         = log2_int(end_addr - start_addr, need_pow2=False)
         tag_bits          = addr_bits - line_bits - offset_bits - 2  # -2 because word line.
         extra_bits        = 32 - tag_bits - line_bits - offset_bits - 2
 
-        pc_layout = [
+        self.pc_layout = [
             ('byte',   2),
             ('offset', offset_bits),
             ('line',   line_bits),
             ('tag',    tag_bits)
         ]
-        if (extra_bits != 0):
-            pc_layout.append(('unused', extra_bits))
+        if extra_bits != 0:
+            self.pc_layout.append(('unused', extra_bits))
 
         # -------------------------------------------------------------------------
         # IO
-        self.s1_address = Record(pc_layout)
+        self.s1_address = Record(self.pc_layout)
         self.s1_flush   = Signal()
         self.s1_valid   = Signal()
         self.s1_stall   = Signal()
         self.s1_access  = Signal()
-        self.s2_address = Record(pc_layout)
+        self.s2_address = Record(self.pc_layout)
         self.s2_evict   = Signal()
         self.s2_valid   = Signal()
         self.s2_stall   = Signal()
@@ -69,7 +83,7 @@ class Cache(Elaboratable):
             self.s2_sel   = Signal(4)
             self.s2_we    = Signal()
 
-        self.bus_addr  = Record(pc_layout)
+        self.bus_addr  = Record(self.pc_layout)
         self.bus_valid = Signal()
         self.bus_last  = Signal()
         self.bus_data  = Signal(32)
@@ -78,9 +92,15 @@ class Cache(Elaboratable):
 
         self.access_cnt = Signal(40)
         self.miss_cnt   = Signal(40)
+        # snoop bus
+        if not enable_write:
+            self.dcache_snoop = InternalSnoopPort(name='cache_snoop')  # RO cache. Implement the Internal snooping port
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
+
+        snoop_addr  = Record(self.pc_layout)
+        snoop_valid = Signal()
 
         # -------------------------------------------------------------------------
         # Performance counter
@@ -92,10 +112,11 @@ class Cache(Elaboratable):
         # -------------------------------------------------------------------------
 
         way_layout = [
-            ('data',     32 * self.nwords),
-            ('tag',      self.s1_address.tag.shape()),
-            ('valid',    1),
-            ('sel_lru',  1)
+            ('data',      32 * self.nwords),
+            ('tag',       self.s1_address.tag.shape()),
+            ('valid',     1),
+            ('sel_lru',   1),
+            ('snoop_hit', 1)
         ]
         if self.enable_write:
             way_layout.append(('sel_we',   1))
@@ -130,6 +151,26 @@ class Cache(Elaboratable):
         # read data from the cache
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))
 
+        # Internal Snoop
+        snoop_use_cache     = Signal()
+        snoop_tag_match     = Signal()
+        snoop_line_match    = Signal()
+        snoop_cancel_refill = Signal()
+        if not self.enable_write:
+            bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
+
+            m.d.comb += [
+                snoop_addr.eq(self.dcache_snoop.addr),  # aux
+
+                snoop_valid.eq(self.dcache_snoop.we & self.dcache_snoop.valid & self.dcache_snoop.ack),
+                snoop_use_cache.eq(snoop_addr[bits_range:] == (self.start_addr >> bits_range)),
+                snoop_tag_match.eq(snoop_addr.tag == self.s2_address.tag),
+                snoop_line_match.eq(snoop_addr.line == self.s2_address.line),
+                snoop_cancel_refill.eq(snoop_use_cache & snoop_valid & snoop_line_match & snoop_tag_match),
+            ]
+        else:
+            m.d.comb += snoop_cancel_refill.eq(0)
+
         with m.FSM():
             with m.State('READ'):
                 with m.If(self.s2_re & self.s2_miss & self.s2_valid):
@@ -145,7 +186,7 @@ class Cache(Elaboratable):
                     m.d.sync += self.bus_addr.offset.eq(self.bus_addr.offset + 1)
                 with m.If(self.bus_ack & self.bus_last | self.bus_err):
                     m.d.sync += self.bus_valid.eq(0)
-                with m.If(~self.bus_valid | self.s1_flush):
+                with m.If(~self.bus_valid | self.s1_flush | snoop_cancel_refill):
                     m.next = 'READ'
                     m.d.sync += self.bus_valid.eq(0)
 
@@ -157,10 +198,11 @@ class Cache(Elaboratable):
             # create the memory structures for valid, tag and data.
             valid = Signal(self.nlines)  # Valid bits
 
-            tag_m  = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
-            tag_rp = tag_m.read_port()
-            tag_wp = tag_m.write_port()
-            m.submodules += tag_rp, tag_wp
+            tag_m    = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
+            tag_rp   = tag_m.read_port()
+            snoop_rp = tag_m.read_port()
+            tag_wp   = tag_m.write_port()
+            m.submodules += tag_rp, tag_wp, snoop_rp
 
             data_m  = Memory(width=len(way.data), depth=self.nlines)  # data memory
             data_rp = data_m.read_port()
@@ -232,5 +274,20 @@ class Cache(Elaboratable):
                     data_wp.data.eq(Repl(self.bus_data, self.nwords)),
                     data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                 ]
+
+                # --------------------------------------------------------------
+                # intenal snoop
+                # for FENCE.i instruction
+                _match_snoop = Signal()
+
+                m.d.comb += [
+                    snoop_rp.addr.eq(snoop_addr.line),  # read tag memory
+                    _match_snoop.eq(snoop_rp.data == snoop_addr.tag),
+                    way.snoop_hit.eq(snoop_use_cache & snoop_valid & _match_snoop & valid.bit_select(snoop_addr.line, 1)),
+                ]
+                # check is the snoop match a write from this core
+                with m.If(way.snoop_hit):
+                    m.d.sync += valid.bit_select(snoop_addr.line, 1).eq(0)
+                # --------------------------------------------------------------
 
         return m

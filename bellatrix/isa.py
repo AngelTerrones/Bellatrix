@@ -72,6 +72,13 @@ class CSRIndex(IntEnum):
     INSTRET    = 0xC02
     CYCLEH     = 0xC80
     INSTRETH   = 0xC82
+    # debug
+    DCSR       = 0x7B0
+    DPC        = 0x7B1
+    # trigger
+    TSELECT    = 0x7A0
+    TDATA1     = 0x7A1
+    TDATA2     = 0x7A2
 
 
 class ExceptionCause(IntEnum):
@@ -205,4 +212,28 @@ mcycle_layout = [
 minstret_layout = [
     ('minstretl', 32, CSRAccess.WARL),
     ('minstreth', 32, CSRAccess.WARL)
+]
+
+dcsr_layout = [
+    ('prv',        2, CSRAccess.WARL),  # Privilege level before Debug Mode was entered
+    ('step',       1, CSRAccess.WARL),  # Execute a single instruction and re-enter Debug Mode
+    ('nmip',       1, CSRAccess.WLRL),  # A non-maskable interrupt is pending
+    ('mprven',     1, CSRAccess.WARL),  # Use mstatus.mprv in Debug Mode
+    ('zero0',      1, CSRAccess.WPRI),
+    ('cause',      3, CSRAccess.WLRL),  # Why Debug Mode was entered
+    ('stoptime',   1, CSRAccess.WARL),  # Stop timer increment during Debug Mode
+    ('stopcount',  1, CSRAccess.WARL),  # Stop counter increment during Debug Mode
+    ('stepie',     1, CSRAccess.WARL),  # Enable interrupts during single stepping
+    ('ebreaku',    1, CSRAccess.WARL),  # EBREAKs in U-mode enter Debug Mode
+    ('ebreaks',    1, CSRAccess.WARL),  # EBREAKs in S-mode enter Debug Mode
+    ('zero1',      1, CSRAccess.WPRI),
+    ('ebreakm',    1, CSRAccess.WARL),  # EBREAKs in M-mode enter Debug Mode
+    ('zero2',     12, CSRAccess.WPRI),
+    ('xdebugver',  4, CSRAccess.WLRL)   # External Debug specification version
+]
+
+tdata1_layout = [
+    ('data',   27, CSRAccess.WARL),
+    ('dmode',   1, CSRAccess.WARL),
+    ('type',    4, CSRAccess.WARL)
 ]

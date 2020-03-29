@@ -4,16 +4,16 @@ from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
 from nmigen.build import Platform
-from .wishbone import Arbiter
-from .wishbone import CycleType
-from .wishbone import Wishbone
+from nmigen_soc.wishbone.bus import CycleType
+from nmigen_soc.wishbone.bus import Interface
 from .cache import Cache
-from .configuration.configuration import Configuration
+from .cache import InternalSnoopPort
+from .wishbone import Arbiter
 
 
 class FetchUnitInterface:
     def __init__(self) -> None:
-        self.iport         = Wishbone(name='iport')
+        self.iport         = Interface(addr_width=32, data_width=32, granularity=32, features=['err'], name='iport')
         self.a_pc          = Signal(32)  # input
         self.a_stall       = Signal()    # input. (needed because the unit uses the pc@address stage)
         self.a_valid       = Signal()    # input. (needed because the unit uses the pc@address stage)
@@ -41,7 +41,7 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
                 ]
         with m.Elif(self.a_valid & ~self.a_stall):  # start transaction
             m.d.sync += [
-                self.iport.addr.eq(self.a_pc),
+                self.iport.adr.eq(self.a_pc),
                 self.iport.cyc.eq(1),
                 self.iport.stb.eq(1)
             ]
@@ -49,8 +49,6 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
             self.iport.dat_w.eq(0),
             self.iport.sel.eq(0),
             self.iport.we.eq(0),
-            self.iport.cti.eq(CycleType.CLASSIC),
-            self.iport.bte.eq(0)
         ]
 
         # in case of error, make the instruction a NOP
@@ -63,7 +61,7 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
         with m.If(self.iport.cyc & self.iport.err):
             m.d.sync += [
                 self.f_bus_error.eq(1),
-                self.f_badaddr.eq(self.iport.addr)
+                self.f_badaddr.eq(self.iport.adr)
             ]
         with m.Elif(~self.f_stall):  # in case of error, but the pipe is stalled, do not lose the error
             m.d.sync += self.f_bus_error.eq(0)
@@ -75,28 +73,23 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
 
 
 class CachedFetchUnit(FetchUnitInterface, Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
+    def __init__(self, **cache_kwargs: int) -> None:
         super().__init__()
 
-        self.nlines     = configuration.getOption('icache', 'nlines')
-        self.nwords     = configuration.getOption('icache', 'nwords')
-        self.nways      = configuration.getOption('icache', 'nways')
-        self.start_addr = configuration.getOption('icache', 'start_addr')
-        self.end_addr   = configuration.getOption('icache', 'end_addr')
-
-        self.f_pc  = Signal(32)  # input
-        self.flush = Signal()    # input
+        self.iport        = Interface(addr_width=32, data_width=32, granularity=32, features=['err', 'bte', 'cti'], name='iport')
+        self.cache_kwargs = cache_kwargs
+        self.start_addr   = cache_kwargs['start_addr']
+        self.end_addr     = cache_kwargs['end_addr']
+        self.nwords       = cache_kwargs['nwords']
+        self.f_pc         = Signal(32)  # input
+        self.flush        = Signal()    # input
+        self.dcache_snoop = InternalSnoopPort(name='cfu_snoop')
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        icache  = m.submodules.icache  = Cache(nlines=self.nlines,
-                                               nwords=self.nwords,
-                                               nways=self.nways,
-                                               start_addr=self.start_addr,
-                                               end_addr=self.end_addr,
-                                               enable_write=False)
-        arbiter = m.submodules.arbiter = Arbiter()
+        arbiter = m.submodules.arbiter = Arbiter(addr_width=32, data_width=32, granularity=32, features=['err', 'cti', 'bte'])
+        icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
 
         cache_port = arbiter.add_port(priority=0)
         bare_port  = arbiter.add_port(priority=1)
@@ -113,6 +106,8 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         # connect IO: cache
         m.d.comb += [
+            icache.dcache_snoop.connect(self.dcache_snoop),
+
             icache.s1_address.eq(self.a_pc),
             icache.s1_flush.eq(self.flush),
             icache.s1_valid.eq(self.a_valid & a_use_cache),
@@ -128,13 +123,13 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         # connect cache to arbiter
         m.d.comb += [
-            cache_port.addr.eq(icache.bus_addr),
+            cache_port.adr.eq(icache.bus_addr),
             cache_port.dat_w.eq(0),
             cache_port.sel.eq(0),
             cache_port.we.eq(0),
             cache_port.cyc.eq(icache.bus_valid),
             cache_port.stb.eq(icache.bus_valid),
-            cache_port.cti.eq(Mux(icache.bus_last, CycleType.END, CycleType.INCREMENT)),
+            cache_port.cti.eq(Mux(icache.bus_last, CycleType.END_OF_BURST, CycleType.INCR_BURST)),
             cache_port.bte.eq(log2_int(self.nwords) - 1),
             icache.bus_data.eq(cache_port.dat_r),
             icache.bus_ack.eq(cache_port.ack),
@@ -152,7 +147,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
                 ]
         with m.Elif(self.a_valid & ~self.a_stall & ~a_use_cache):
             m.d.sync += [
-                bare_port.addr.eq(self.a_pc),
+                bare_port.adr.eq(self.a_pc),
                 bare_port.cyc.eq(1),
                 bare_port.stb.eq(1)
             ]
@@ -185,7 +180,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         with m.If(self.iport.cyc & self.iport.err):
             m.d.sync += [
                 self.f_bus_error.eq(1),
-                self.f_badaddr.eq(self.iport.addr)
+                self.f_badaddr.eq(self.iport.adr)
             ]
         with m.Elif(~self.f_stall):  # in case of error, but the pipe is stalled, do not lose the error
             m.d.sync += self.f_bus_error.eq(0)

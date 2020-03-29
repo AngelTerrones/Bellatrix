@@ -44,6 +44,15 @@ class CSR:
         self.we    = Signal()
 
 
+class AutoCSR():
+    def get_csrs(self):
+        for v in vars(self).values():
+            if isinstance(v, CSR):
+                yield v
+            elif hasattr(v, "iter_csrs"):
+                yield from v.get_csrs()
+
+
 class CSRFile(Elaboratable):
     def __init__(self) -> None:
         self.width                    = 32

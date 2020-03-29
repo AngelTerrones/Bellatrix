@@ -7,12 +7,12 @@ from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.utils import log2_int
 from nmigen.build import Platform
-from .configuration.configuration import Configuration
 
 
 class BranchPredictor(Elaboratable):
-    def __init__(self, configuration: Configuration) -> None:
-        self.configuration = configuration
+    def __init__(self, predictor_size: int) -> None:
+        # ----------------------------------------------------------------------
+        self.predictor_size   = predictor_size
 
         self.a_pc               = Signal(32)  # input
         self.a_stall            = Signal()    # input
@@ -29,11 +29,10 @@ class BranchPredictor(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        size = self.configuration.getOption('predictor', 'size')
-        if size == 0 or (size & (size - 1)):
-            raise ValueError(f'size must be a power of 2: {size}')
+        if self.predictor_size == 0 or (self.predictor_size & (self.predictor_size - 1)):
+            raise ValueError(f'size must be a power of 2: {self.predictor_size}')
 
-        _bits_index = log2_int(size)
+        _bits_index = log2_int(self.predictor_size)
         _bits_tag   = 32 - _bits_index
         _btb_width  = 1 + 32 + _bits_tag  # valid + data + tag
         _btb_depth  = 1 << _bits_index

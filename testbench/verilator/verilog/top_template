@@ -15,7 +15,7 @@ module top (
     );
     //--------------------------------------------------------------------------
     localparam       MEM_SIZE   = 32'h0100_0000;
-    localparam [4:0] ADDR_WIDTH = $clog2(MEM_SIZE);
+    localparam [4:0] ADDR_WIDTH = $$clog2(MEM_SIZE);
     localparam       BASE_ADDR  = 32'h8000_0000; // WARNING: this number goes with the core+
 
     wire [31:0]  iport__addr;
@@ -61,23 +61,24 @@ module top (
     wire         timer_interrupt;
     wire         software_interrupt;
 
+    $no_icache_assign
+    $no_dcache_assign
+
     bellatrix_core cpu (// Outputs
-                        .iport__addr        (iport__addr[31:0]),
+                        .iport__adr        (iport__addr[31:0]),
                         .iport__dat_w       (iport__dat_w),
                         .iport__sel         (iport__sel),
                         .iport__cyc         (iport__cyc),
                         .iport__stb         (iport__stb),
                         .iport__we          (iport__we),
-                        .iport__cti         (iport__cti),
-                        .iport__bte         (iport__bte),
-                        .dport__addr        (dport__addr[31:0]),
+                        $no_icache_port
+                        .dport__adr         (dport__addr[31:0]),
                         .dport__dat_w       (dport__dat_w[31:0]),
                         .dport__sel         (dport__sel[3:0]),
                         .dport__cyc         (dport__cyc),
                         .dport__stb         (dport__stb),
                         .dport__we          (dport__we),
-                        .dport__cti         (dport__cti),
-                        .dport__bte         (dport__bte),
+                        $no_dcache_port
                         // Inputs
                         .clk                (clk),
                         .rst                (rst),
