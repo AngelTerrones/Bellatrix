@@ -351,8 +351,8 @@ class Bellatrix(Elaboratable):
             fwd_w_rs2.eq((decoder.gpr_rs2 == w.endpoint_a.gpr_rd) & (decoder.gpr_rs2 != 0) & w.endpoint_a.gpr_we),
         ]
 
-        d.add_stall_source(((fwd_x_rs1 & decoder.gpr_rs1_use) | (fwd_x_rs2 & decoder.gpr_rs2_use)) & ~x.endpoint_a.needed_in_x & x.valid)
-        d.add_stall_source(((fwd_m_rs1 & decoder.gpr_rs1_use) | (fwd_m_rs2 & decoder.gpr_rs2_use)) & ~m.endpoint_a.needed_in_m & m.valid)
+        d.add_stall_source(((fwd_x_rs1 & decoder.gpr_rs1_use) | (fwd_x_rs2 & decoder.gpr_rs2_use)) & ~x.endpoint_a.needed_in_x & x.valid & d.valid)
+        d.add_stall_source(((fwd_m_rs1 & decoder.gpr_rs1_use) | (fwd_m_rs2 & decoder.gpr_rs2_use)) & ~m.endpoint_a.needed_in_m & m.valid & d.valid)
         d.add_kill_source(exception.m_exception & m.valid)
         d.add_kill_source(m.endpoint_a.mret & m.valid)
         d.add_kill_source(m_kill_bj)
