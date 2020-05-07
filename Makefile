@@ -29,10 +29,6 @@ GEN_FOLDER=$(BFOLDER)/$(VARIANT)
 
 OBJ_FOLDER_DEL=$(shell find $(BFOLDER) -name "*obj_*")
 
-# Compliance tests + xint test
-RVCOMPLIANCE = $(ROOT)/tests/riscv-compliance
-RVXTRASF     = $(ROOT)/tests/extra-tests
-
 # export variables
 export ROOT
 export RISCV_PREFIX ?= $(RVGCC_PATH)/riscv64-unknown-elf-
