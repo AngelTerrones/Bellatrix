@@ -49,7 +49,7 @@ class AutoCSR():
         for v in vars(self).values():
             if isinstance(v, CSR):
                 yield v
-            elif hasattr(v, "iter_csrs"):
+            elif hasattr(v, "get_csrs"):
                 yield from v.get_csrs()
 
 
