@@ -240,7 +240,7 @@ class DecoderUnit(Elaboratable):
             ])),
             self.shift_direction.eq(funct3 == Funct3.SR),
             self.shit_signed.eq(funct7 == Funct7.SRA),
-            self.csr_we.eq(~funct3[1] | self.gpr_rs1 != 0),
+            self.csr_we.eq(~funct3[1] | (self.gpr_rs1 != 0)),
         ]
 
         if (self.enable_rv32m):
