@@ -47,9 +47,6 @@ export VARIANT
 help:
 	@echo -e "--------------------------------------------------------------------------------"
 	@echo -e $(BYellow)"Please, choose one target:"$(Color_Off)
-	@echo -e $(BRed)"Setup:"$(Color_Off)
-	@echo -e "- install-compliance:               Clone the riscv-compliance test."
-	@echo -e "- setup-environment:                Create a python3 virtualenv, and installs nMigen."
 	@echo -e $(BPurple)"Generate:"$(Color_Off)
 	@echo -e "- generate-core:                    Generate the verilog output file."
 	@echo -e "- generate-core-all:                Generate ALL the verilog output file."
@@ -68,11 +65,6 @@ help:
 	@echo -e "- core-sim-compliance-rv32Zifencei: Execute the RV32Zifencei compliance test."
 	@echo -e "--------------------------------------------------------------------------------"
 
-# ------------------------------------------------------------------------------
-# Install compliance repo (custom one)
-# ------------------------------------------------------------------------------
-install-compliance:
-	@./scripts/setup/install_compliance.sh
 # ------------------------------------------------------------------------------
 # compliance tests
 # ------------------------------------------------------------------------------
@@ -102,11 +94,7 @@ core-sim-compliance-rv32Zifencei: build-core
 
 build-extra-tests:
 	$(SUBMAKE) -C tests/extra-tests
-# ------------------------------------------------------------------------------
-# Create the development environment.
-# ------------------------------------------------------------------------------
-setup-environment:
-	@./scripts/setup/setup_environment.sh
+
 # ------------------------------------------------------------------------------
 # Generate core, verilate, and build
 # ------------------------------------------------------------------------------
