@@ -48,8 +48,8 @@ help:
 	@echo -e "--------------------------------------------------------------------------------"
 	@echo -e $(BYellow)"Please, choose one target:"$(Color_Off)
 	@echo -e $(BPurple)"Generate:"$(Color_Off)
-	@echo -e "- generate-core:                    Generate the verilog output file."
-	@echo -e "- generate-core-all:                Generate ALL the verilog output file."
+	@echo -e "- generate-core:                    Generate verilog from the design."
+	@echo -e "- generate-core-all:                Generate all the verilog files, one for each available VARIANT."
 	@echo -e $(BBlue)"Build:"$(Color_Off)
 	@echo -e "- build-core:                       Build the verilator testbench."
 	@echo -e "- build-core-all:                   Build ALL verilator testbenches."
