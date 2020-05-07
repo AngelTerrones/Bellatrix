@@ -113,6 +113,8 @@ class CSRFile(Elaboratable):
                             ]
                     with m.Default():
                         m.d.comb += invalid_undef.eq(1)
+
+                m.d.comb += self.invalid.eq(invalid_undef | (invalid_ro & port.en) | invalid_priv)
             else:
                 with m.Switch(port.addr):
                     for addr, csr in self._csr_map.items():
@@ -122,7 +124,5 @@ class CSRFile(Elaboratable):
                                 port.data_r.eq(csr.read & csr.mask),
                                 csr.write.eq(port.data_w & csr.mask)
                             ]
-
-        m.d.comb += self.invalid.eq(invalid_undef | (invalid_ro & port.en) | invalid_priv)
 
         return m
