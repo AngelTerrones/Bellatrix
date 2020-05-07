@@ -188,7 +188,7 @@ module ram #(
     //
     function void ram_v_dpi_write_byte(int address, byte data);
         if (address[31:ADDR_WIDTH] != BASE_ADDR[31:ADDR_WIDTH]) begin
-            $display("[RAM write word] Bad address: %h. Abort.\n", address);
+            $display("[RAM write byte] Bad address: %h. Abort.\n", address);
             $finish;
         end
         mem[address[ADDR_WIDTH-1:0]] = data;
