@@ -1,4 +1,4 @@
-![logo](documentation/img/logo.png)
+# Bellatrix
 
 Bellatrix is a CPU core that implements the [RISC-V RV32I Instruction Set][1].
 
