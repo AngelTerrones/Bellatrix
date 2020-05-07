@@ -437,14 +437,7 @@ class Bellatrix(Elaboratable):
             x.add_stall_source(x.valid & lsu.x_busy)
         if self.enable_rv32m:
             x.add_stall_source(x.valid & x.endpoint_a.multiplier & ~multiplier.ready)
-        if self.trigger_enable:
-            cpu.d.comb += [
-                trigger.x_pc.eq(x.endpoint_a.pc),
-                trigger.x_bus_addr.eq(lsu.x_addr),
-                trigger.x_store.eq(lsu.x_store),
-                trigger.x_load.eq(lsu.x_load),
-                trigger.x_valid.eq(x.valid)
-            ]
+
         # ebreak logic
         x_ebreak = x.endpoint_a.ebreak
         if self.trigger_enable:
@@ -584,6 +577,15 @@ class Bellatrix(Elaboratable):
                 predictor.m_pc.eq(m.endpoint_a.pc),
                 predictor.m_target_pc.eq(m.endpoint_a.jmp_branch_target),
                 predictor.m_update.eq(m.endpoint_a.branch & m.valid)
+            ]
+        # ----------------------------------------------------------------------
+        if self.trigger_enable:
+            cpu.d.comb += [
+                trigger.x_pc.eq(x.endpoint_a.pc),
+                trigger.x_bus_addr.eq(lsu.x_addr),
+                trigger.x_store.eq(lsu.x_store),
+                trigger.x_load.eq(lsu.x_load),
+                trigger.x_valid.eq(x.valid)
             ]
         # ----------------------------------------------------------------------
         # Pipeline registers
