@@ -23,8 +23,8 @@ VCOREDIR = $(ROOT)/testbench/verilator
 CORE_FILES=$(shell find bellatrix -name "*.py")
 CLI_FILE=$(ROOT)/cli.py
 VERBOSE=--verbose
+TOPTB=--top-tb
 
-VARIANTS=minimal lite standard full minimal_debug
 GEN_FOLDER=$(BFOLDER)/$(VARIANT)
 
 OBJ_FOLDER_DEL=$(shell find $(BFOLDER) -name "*obj_*")
@@ -45,10 +45,8 @@ help:
 	@echo -e $(BYellow)"Please, choose one target:"$(Color_Off)
 	@echo -e $(BPurple)"Generate:"$(Color_Off)
 	@echo -e "- generate-core:                    Generate verilog from the design."
-	@echo -e "- generate-core-all:                Generate all the verilog files, one for each available VARIANT."
 	@echo -e $(BBlue)"Build:"$(Color_Off)
 	@echo -e "- build-core:                       Build the verilator testbench."
-	@echo -e "- build-core-all:                   Build ALL verilator testbenches."
 	@echo -e $(BGreen)"Execute tests:"$(Color_Off)
 	@echo -e "- core-sim-compliance-basic:        Execute the rv32i, rv32ui and rv32mi tests."
 	@echo -e "- core-sim-compliance-extra:        Execute the rv32i, rv32ui, rv32mi, rv32Zicsr and rv32Zifencei tests."
@@ -88,29 +86,20 @@ core-sim-compliance-rv32Zicsr: build-core
 core-sim-compliance-rv32Zifencei: build-core
 	@$(SUBMAKE) -C $(RVCOMPLIANCE) variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA=rv32Zifencei
 
-build-extra-tests:
-	$(SUBMAKE) -C tests/extra-tests
-
 # ------------------------------------------------------------------------------
 # Generate core, verilate, and build
 # ------------------------------------------------------------------------------
 generate-core: $(GEN_FOLDER)/bellatrix_core.v
 
-generate-core-all:
-	+@$(foreach variant, $(VARIANTS), make generate-core VARIANT=$(variant) VERBOSE= --no-print-directory ;)
-
 build-core: generate-core
 	+@$(SUBMAKE) -C $(VCOREDIR)
-
-build-core-all:
-	+@$(foreach variant, $(VARIANTS), make build-core VARIANT=$(variant) VERBOSE=;)
 # ------------------------------------------------------------------------------
 # HIDDEN
 # ------------------------------------------------------------------------------
 $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatrix_$(VARIANT).yml
 	@mkdir -p $(GEN_FOLDER)
-	@echo -e "Generate core:" $(BGreen)$(VARIANT)$(Color_Off)
-	@python $(CLI_FILE) $(VERBOSE) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
+	@echo -e "Generating core:" $(BGreen)$(VARIANT)$(Color_Off)
+	@python $(CLI_FILE) $(VERBOSE) $(TOPTB) --variant $(VARIANT) generate $(GEN_FOLDER)/bellatrix_core.v
 #   @echo -e "Generate core:" $(BGreen)Done!$(Color_Off)
 
 # ------------------------------------------------------------------------------

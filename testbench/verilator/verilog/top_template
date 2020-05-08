@@ -2,12 +2,15 @@
 // Copyright (C) 2019 Angel Terrones <angelterrones@gmail.com>
 // -----------------------------------------------------------------------------
 // Title       : CPU testbench
-// Project     : Bellartrix
+// Project     : Bellatrix
 // Description : Top module for the CPU testbench
 // -----------------------------------------------------------------------------
 
 `default_nettype none
 `timescale 1 ns / 1 ps
+
+$icache
+$dcache
 
 module top (
     input wire clk,
@@ -16,7 +19,7 @@ module top (
     //--------------------------------------------------------------------------
     localparam       MEM_SIZE   = 32'h0100_0000;
     localparam [4:0] ADDR_WIDTH = $$clog2(MEM_SIZE);
-    localparam       BASE_ADDR  = 32'h8000_0000; // WARNING: this number goes with the core+
+    localparam       BASE_ADDR  = 32'h8000_0000;
 
     wire [31:0]  iport__addr;
     wire [31:0]  iport__dat_w;
@@ -61,8 +64,17 @@ module top (
     wire         timer_interrupt;
     wire         software_interrupt;
 
-    $no_icache_assign
-    $no_dcache_assign
+    wire         unused;
+
+`ifndef ICACHE
+    assign iport__cti = 0;
+    assign iport__bte = 0;
+`endif
+
+`ifndef DCACHE
+    assign dport__cti = 0;
+    assign dport__bte = 0;
+`endif
 
     bellatrix_core cpu (// Outputs
                         .iport__adr        (iport__addr[31:0]),
@@ -71,14 +83,20 @@ module top (
                         .iport__cyc         (iport__cyc),
                         .iport__stb         (iport__stb),
                         .iport__we          (iport__we),
-                        $no_icache_port
+`ifdef ICACHE
+                        .iport__cti         (iport__cti),
+                        .iport__bte         (iport__bte),
+`endif
                         .dport__adr         (dport__addr[31:0]),
                         .dport__dat_w       (dport__dat_w[31:0]),
                         .dport__sel         (dport__sel[3:0]),
                         .dport__cyc         (dport__cyc),
                         .dport__stb         (dport__stb),
                         .dport__we          (dport__we),
-                        $no_dcache_port
+`ifdef DCACHE
+                        .dport__cti         (dport__cti),
+                        .dport__bte         (dport__bte),
+`endif
                         // Inputs
                         .clk                (clk),
                         .rst                (rst),
