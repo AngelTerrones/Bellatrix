@@ -163,7 +163,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         with m.If(f_use_cache):
             m.d.comb += [
                 self.f_instruction.eq(icache.s2_rdata),
-                self.f_busy.eq(icache.s2_miss)
+                self.f_busy.eq(icache.s2_miss & self.f_valid)
             ]
         with m.Elif(self.f_bus_error):
             m.d.comb += [
