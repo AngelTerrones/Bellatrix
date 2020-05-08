@@ -3,6 +3,9 @@
     core: {
         reset_address: 0x80000000,
     },
+    trigger: {
+        enable: False
+    },
     isa: {
         enable_rv32m: True,
         enable_extra_csr: True,
