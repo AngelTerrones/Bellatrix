@@ -119,7 +119,6 @@ $(GEN_FOLDER)/bellatrix_core.v: $(CORE_FILES) $(CLI_FILE) configurations/bellatr
 clean:
 	rm -rf $(OBJ_FOLDER_DEL)
 
-distclean: clean
+distclean:
 	@$(SUBMAKE) -C $(RVCOMPLIANCE) clean
-	@$(SUBMAKE) -C tests/extra-tests clean
 	rm -rf $(BFOLDER)
