@@ -25,7 +25,7 @@ static std::atomic_bool quit(false);
 
 // -----------------------------------------------------------------------------
 void intHandler(int signo){
-        printf("\r[SIGNAL] Quit...\n");
+        printf("\r[CORETB] Quit...\n");
         fflush(stdout);
         quit = true;
         signal(SIGINT, SIG_DFL); // restore default handler.
@@ -76,13 +76,13 @@ int CORETB::SimulateCore(const std::string &progfile, const unsigned long max_ti
 uint32_t CORETB::PrintExitMessage(const bool ok, const unsigned long max_time) {
         uint32_t exit_code;
         if (ok){
-                printf(ANSI_COLOR_GREEN "Simulation done. Time %u\n" ANSI_COLOR_RESET, getTime());
+                printf(ANSI_COLOR_GREEN "[CORETB] Simulation done. Time %u\n" ANSI_COLOR_RESET, getTime());
                 exit_code = 0;
         } else if (getTime() < max_time || max_time == 0) {
-                printf(ANSI_COLOR_RED "Simulation error. Exit code: %08X. Time: %u\n" ANSI_COLOR_RESET, m_exitCode, getTime());
+                printf(ANSI_COLOR_RED "[CORETB] Simulation error. Exit code: %08X. Time: %u\n" ANSI_COLOR_RESET, m_exitCode, getTime());
                 exit_code = 1;
         } else {
-                printf(ANSI_COLOR_MAGENTA "Simulation error. Timeout. Time: %u\n" ANSI_COLOR_RESET, getTime());
+                printf(ANSI_COLOR_MAGENTA "[CORETB] Simulation error. Timeout. Time: %u\n" ANSI_COLOR_RESET, getTime());
                 exit_code = 2;
         }
         return exit_code;
@@ -124,13 +124,13 @@ void CORETB::SyscallPrint(const uint32_t base_addr) const {
 void CORETB::LoadMemory(const std::string &progfile) {
         svSetScope(svGetScopeFromName("TOP.top.memory"));
         ram_v_dpi_load(progfile.data());
-        printf(ANSI_COLOR_YELLOW "Executing file: %s\n" ANSI_COLOR_RESET, progfile.c_str());
+        printf("[CORETB] Executing file: " ANSI_COLOR_YELLOW "%s\n" ANSI_COLOR_RESET, progfile.c_str());
 }
 // -----------------------------------------------------------------------------
 void CORETB::DumpSignature(const std::string &signature) {
         FILE *fp = fopen(signature.data(), "w");
         if (fp == NULL) {
-                fprintf(stderr, ANSI_COLOR_RED "Unable to open the signature file. \n" ANSI_COLOR_RESET);
+                fprintf(stderr, ANSI_COLOR_RED "[CORETB] Unable to open the signature file. \n" ANSI_COLOR_RESET);
                 return;
         }
         // Signature from riscv-compliance: 1 word per line

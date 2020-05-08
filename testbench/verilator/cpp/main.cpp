@@ -41,12 +41,14 @@ int main(int argc, char **argv) {
         //
         bool     badParams = false;
         uint32_t timeout   = 0;
+
+        printf("[MAIN] Using configuration file: " ANSI_COLOR_YELLOW BCONFIG "\n" ANSI_COLOR_RESET);
         // ---------------------------------------------------------------------
         // process options
         if (s_progfile.empty()) {
                 badParams = true;
         } else if (s_timeout.empty()) {
-                printf("Executing without time limit\n");
+                printf("[MAIN] Executing without time limit\n");
         } else {
                 timeout = std::stoul(s_timeout);
         }
@@ -62,10 +64,9 @@ int main(int argc, char **argv) {
 #endif
         const char* vcdFile = "build/trace_" EXE ".vcd";
         if (trace) {
-                printf("[CORETB] Generate VCD file in build folder\n");
+                printf("[MAIN] Generate VCD file in build folder\n");
                 tb->OpenTrace(vcdFile);
         }
-        printf("Using configuration file: " BCONFIG"\n");
         int exitCode = tb->SimulateCore(s_progfile, timeout, s_signature);
         tb->CloseTrace();
         delete tb;

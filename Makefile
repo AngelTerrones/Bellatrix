@@ -35,7 +35,7 @@ export RISCV_PREFIX ?= $(RVGCC_PATH)/riscv64-unknown-elf-
 export TARGET_FOLDER = $(VCOREDIR)
 export RTLDIR = $(GEN_FOLDER)
 export VOUT = $(GEN_FOLDER)
-export VARIANT
+export BCONFIG=configurations/bellatrix_$(VARIANT).yml
 
 # ------------------------------------------------------------------------------
 # targetsEXE
