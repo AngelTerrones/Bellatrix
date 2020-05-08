@@ -83,7 +83,8 @@ class Bellatrix(Elaboratable):
         # kwargs for units
         self.exception_unit_kw = dict(enable_rv32m=self.enable_rv32m,
                                       enable_extra_csr=self.enable_extra_csr,
-                                      enable_user_mode=self.enable_user_mode)
+                                      enable_user_mode=self.enable_user_mode,
+                                      core_reset_address=self.reset_address)
         self.icache_kwargs = dict(nlines=self.icache_nlines,
                                   nwords=self.icache_nwords,
                                   nways=self.icache_nways,

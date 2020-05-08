@@ -14,17 +14,14 @@ from bellatrix.isa import PrivMode
 
 
 class ExceptionUnit(Elaboratable, AutoCSR):
-    def __init__(self,
-                 enable_rv32m: bool,
-                 enable_extra_csr: bool,
-                 enable_user_mode: bool
-                 ) -> None:
+    def __init__(self, **exception_kwargs) -> None:
         # ----------------------------------------------------------------------
-        self.enable_user_mode = enable_user_mode
-        self.enable_extra_csr = enable_extra_csr
-        self.enable_rv32m     = enable_rv32m
+        self.enable_user_mode   = exception_kwargs['enable_user_mode']
+        self.enable_extra_csr   = exception_kwargs['enable_extra_csr']
+        self.enable_rv32m       = exception_kwargs['enable_rv32m']
+        self.core_reset_address = exception_kwargs['core_reset_address']
         # ----------------------------------------------------------------------
-        if enable_extra_csr:
+        if self.enable_extra_csr:
             self.misa      = CSR(CSRIndex.MISA, 'misa', misa_layout)
             self.mhartid   = CSR(CSRIndex.MHARTID, 'mhartid', basic_layout)
             self.mimpid    = CSR(CSRIndex.MIMPID, 'mimpid', basic_layout)
@@ -34,7 +31,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
             self.mcycle    = CSR(CSRIndex.MCYCLE, 'mcycle', basic_layout)
             self.minstreth = CSR(CSRIndex.MINSTRETH, 'minstreth', basic_layout)
             self.mcycleh   = CSR(CSRIndex.MCYCLEH, 'mcycleh', basic_layout)
-            if enable_user_mode:
+            if self.enable_user_mode:
                 self.instret  = CSR(CSRIndex.INSTRET, 'instret', basic_layout)
                 self.cycle    = CSR(CSRIndex.CYCLE, 'cycle', basic_layout)
                 self.instreth = CSR(CSRIndex.INSTRETH, 'instreth', basic_layout)
@@ -76,6 +73,10 @@ class ExceptionUnit(Elaboratable, AutoCSR):
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
+
+        # Set MTVEC to the RESET address, to avoid getting lost in limbo if there's an exception
+        # before the boot code sets this to a valid value
+        self.mtvec.read.base.reset = self.core_reset_address >> 2
 
         privmode = Signal(PrivMode)
         privmode.reset = PrivMode.Machine  # default mode is Machine
