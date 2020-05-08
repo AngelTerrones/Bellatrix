@@ -9,6 +9,8 @@ from bellatrix.isa import CSRIndex
 from bellatrix.isa import basic_layout
 from bellatrix.isa import tdata1_layout
 from bellatrix.isa import PrivMode
+from operator import or_
+from functools import reduce
 
 
 class TriggerAction:
@@ -111,36 +113,45 @@ class TriggerModule(Elaboratable, AutoCSR):
                         m.d.sync += trigger_data.data.eq(self.tdata2.write)
 
         # trigger logic
-        hit  = Signal()
-        halt = Signal()
+        hit    = Signal()
+        halt   = Signal()
+        hit_v  = Signal(self.ntriggers)
+        halt_v = Signal(self.ntriggers)
 
-        with m.Switch(self.tdata1.read.type):
-            with m.Case(TriggerType.MATCH):
-                match    = Signal()
-                mcontrol = Record(mcontrol_layout)
-                m.d.comb += mcontrol.eq(self.tdata1.read)  # casting, lol
-                with m.If(mcontrol.execute):
-                    m.d.comb += match.eq(self.x_valid & (self.tdata2.read == self.x_pc))
-                with m.Elif(mcontrol.store):
-                    m.d.comb += match.eq(self.x_valid & self.x_store & (self.tdata2.read == self.x_bus_addr))
-                with m.Elif(mcontrol.load):
-                    m.d.comb += match.eq(self.x_valid & self.x_load & (self.tdata2.read == self.x_bus_addr))
+        for idx, (trigger, trigger_data) in enumerate(zip(triggers, triggers_data)):
+            with m.Switch(trigger.type):
+                with m.Case(TriggerType.MATCH):
+                    match    = Signal()
+                    mcontrol = Record(mcontrol_layout)
+                    m.d.comb += mcontrol.eq(trigger)  # casting, lol
 
-                if self.enable_user_mode:
-                    # check the current priv mode, and check the priv enable mode
-                    priv_m = self.privmode == PrivMode.Machine
-                    priv_u = self.privmode == PrivMode.User
-                    hit_tmp = match & ((mcontrol.m & priv_m) | (mcontrol.u & priv_u))
-                else:
-                    hit_tmp = match & mcontrol.m
-                m.d.comb += [
-                    hit.eq(hit_tmp),
-                    halt.eq(mcontrol.action)
-                ]
+                    with m.If(mcontrol.execute):
+                        m.d.comb += match.eq(self.x_valid & (trigger_data == self.x_pc))
+                    with m.Elif(mcontrol.store):
+                        m.d.comb += match.eq(self.x_valid & self.x_store & (trigger_data == self.x_bus_addr))
+                    with m.Elif(mcontrol.load):
+                        m.d.comb += match.eq(self.x_valid & self.x_load & (trigger_data == self.x_bus_addr))
+
+                    if self.enable_user_mode:
+                        # check the current priv mode, and check the priv enable mode
+                        priv_m = self.privmode == PrivMode.Machine
+                        priv_u = self.privmode == PrivMode.User
+                        hit_tmp = match & ((mcontrol.m & priv_m) | (mcontrol.u & priv_u))
+                    else:
+                        hit_tmp = match & mcontrol.m
+
+                    m.d.comb += [
+                        hit_v[idx].eq(hit_tmp),
+                        halt_v[idx].eq(mcontrol.action)
+                    ]
 
         # request signals: halt/exception
+        m.d.comb += [
+            hit.eq(reduce(or_, hit_v, 0)),
+            halt.eq(reduce(or_, halt_v, 0))
+        ]
         with m.If(hit):
-            with m.If(halt):  # halt = action.
+            with m.If(halt):  # halt = mcontrol.action
                 m.d.comb += self.haltreq.eq(self.tdata1.read.dmode)  # enter debug mode only if dmode = 1
             with m.Else():
                 m.d.comb += self.trap.eq(1)  # generate exception
