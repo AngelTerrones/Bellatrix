@@ -53,40 +53,43 @@ clean:
 .SECONDARY: $(OBJS)
 
 # Verilate
-$(VOBJ)/Vtop__ALL.a: $(VSOURCES)
+$(VOBJ)/Vtop.mk: $(VSOURCES)
 	@mkdir -p $(VOUT)
+	@echo $(VOBJ)
 	@printf "%b" "$(COM_COLOR)$(VER_STRING)$(OBJ_COLOR) $(VTOP) $(NO_COLOR)\n"
 	+@$(VERILATE) $(VTOP)
+
+$(VOBJ)/Vtop__ALL.a: $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F)$(NO_COLOR)\n"
 	+@$(SUBMAKE) Vtop.mk
 
 # Verilator
-$(VOBJ)/verilated.o: $(VINCD)/verilated.cpp
+$(VOBJ)/verilated.o: $(VINCD)/verilated.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
 
-$(VOBJ)/verilated_vcd_c.o: $(VINCD)/verilated_vcd_c.cpp
+$(VOBJ)/verilated_vcd_c.o: $(VINCD)/verilated_vcd_c.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
 
-$(VOBJ)/verilated_dpi.o: $(VINCD)/verilated_dpi.cpp
+$(VOBJ)/verilated_dpi.o: $(VINCD)/verilated_dpi.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) $(INCS) $(CFLAGS_V) -c $< -o $@
 
 # Bellatrix
-$(VOBJ)/aelf.o: cpp/aelf.cpp
+$(VOBJ)/aelf.o: cpp/aelf.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
 
-$(VOBJ)/coretb.o: cpp/coretb.cpp
+$(VOBJ)/coretb.o: cpp/coretb.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
 
-$(VOBJ)/main.o: cpp/main.cpp
+$(VOBJ)/main.o: cpp/main.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
 
-$(VOBJ)/ram.o: cpp/ram.cpp
+$(VOBJ)/ram.o: cpp/ram.cpp $(VOBJ)/Vtop.mk
 	@printf "%b" "$(COM_COLOR)$(COM_STRING)$(OBJ_COLOR) $(@F) $(NO_COLOR)\n"
 	$(CXX) $(CFLAGS) -DEXE="\"$(EXE)\"" -DBCONFIG="\"$(BCONFIG)\"" $(INCS) -c $< -o $@
 
