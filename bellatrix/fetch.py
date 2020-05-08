@@ -6,9 +6,9 @@ from nmigen.utils import log2_int
 from nmigen.build import Platform
 from nmigen_soc.wishbone.bus import CycleType
 from nmigen_soc.wishbone.bus import Interface
-from .cache import Cache
-from .cache import InternalSnoopPort
-from .wishbone import Arbiter
+from bellatrix.cache import Cache
+from bellatrix.cache import InternalSnoopPort
+from bellatrix.wishbone import Arbiter
 
 
 class FetchUnitInterface:

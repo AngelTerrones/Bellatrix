@@ -2,7 +2,7 @@ from nmigen import Signal
 from nmigen import Module
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from .isa import Funct3
+from bellatrix.isa import Funct3
 
 
 class LogicUnit(Elaboratable):

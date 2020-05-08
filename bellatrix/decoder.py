@@ -3,11 +3,11 @@ from nmigen import Signal
 from nmigen import Module
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from .isa import Funct3
-from .isa import Funct7
-from .isa import Funct12
-from .isa import Opcode
-from .isa import PrivMode
+from bellatrix.isa import Funct7
+from bellatrix.isa import Funct3
+from bellatrix.isa import Funct12
+from bellatrix.isa import Opcode
+from bellatrix.isa import PrivMode
 from functools import reduce
 from operator import or_
 from typing import Tuple, List, Optional

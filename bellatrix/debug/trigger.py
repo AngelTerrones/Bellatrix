@@ -3,12 +3,12 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from ..csr import CSR
-from ..csr import AutoCSR
-from ..isa import CSRIndex
-from ..isa import basic_layout
-from ..isa import tdata1_layout
-from ..isa import PrivMode
+from bellatrix.csr import CSR
+from bellatrix.csr import AutoCSR
+from bellatrix.isa import CSRIndex
+from bellatrix.isa import basic_layout
+from bellatrix.isa import tdata1_layout
+from bellatrix.isa import PrivMode
 
 
 class TriggerAction:
