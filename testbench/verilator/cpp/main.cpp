@@ -42,20 +42,20 @@ int main(int argc, char **argv) {
         bool     badParams = false;
         uint32_t timeout   = 0;
 
-        printf("[MAIN] Using configuration file: " ANSI_COLOR_YELLOW BCONFIG "\n" ANSI_COLOR_RESET);
         // ---------------------------------------------------------------------
         // process options
-        if (s_progfile.empty()) {
+        if (s_progfile.empty())
                 badParams = true;
-        } else if (s_timeout.empty()) {
-                printf("[MAIN] Executing without time limit\n");
-        } else {
-                timeout = std::stoul(s_timeout);
-        }
         // check for help
         if (badParams || help) {
                 printHelp();
                 exit(EXIT_FAILURE);
+        }
+        printf("[MAIN] Using configuration file: " ANSI_COLOR_YELLOW BCONFIG "\n" ANSI_COLOR_RESET);
+        if (s_timeout.empty()) {
+                printf("[MAIN] Executing without time limit\n");
+        } else {
+                timeout = std::stoul(s_timeout);
         }
         // ---------------------------------------------------------------------
         CORETB *tb =new CORETB();
