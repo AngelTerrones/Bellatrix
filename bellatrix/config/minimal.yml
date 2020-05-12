@@ -1,0 +1,24 @@
+# Bellatrix minimal configuration
+{
+    core: {
+        reset_address: 0x80000000,
+    },
+    trigger: {
+        enable: False
+    },
+    isa: {
+        enable_rv32m: False,
+        enable_extra_csr: True,
+        enable_user_mode: False,
+    },
+    predictor: {
+        enable: False
+    },
+    icache: {
+        enable: False
+    },
+    dcache: {
+        enable: False
+    }
+
+}
