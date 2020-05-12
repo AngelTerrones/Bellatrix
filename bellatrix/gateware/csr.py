@@ -4,8 +4,8 @@ from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.isa import CSRAccess
-from bellatrix.isa import PrivMode
+from bellatrix.gateware.isa import CSRAccess
+from bellatrix.gateware.isa import PrivMode
 from typing import List, Tuple, Dict
 
 

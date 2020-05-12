@@ -2,7 +2,7 @@ from nmigen import Module
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.isa import Funct3
+from bellatrix.gateware.isa import Funct3
 
 
 class CompareUnit(Elaboratable):

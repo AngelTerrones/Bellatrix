@@ -3,12 +3,12 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.csr import CSR
-from bellatrix.csr import AutoCSR
-from bellatrix.isa import CSRIndex
-from bellatrix.isa import basic_layout
-from bellatrix.isa import tdata1_layout
-from bellatrix.isa import PrivMode
+from bellatrix.gateware.csr import CSR
+from bellatrix.gateware.csr import AutoCSR
+from bellatrix.gateware.isa import CSRIndex
+from bellatrix.gateware.isa import basic_layout
+from bellatrix.gateware.isa import tdata1_layout
+from bellatrix.gateware.isa import PrivMode
 from operator import or_
 from functools import reduce
 

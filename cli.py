@@ -7,7 +7,7 @@ import subprocess
 from subprocess import CalledProcessError
 from nmigen.back import verilog
 from nmigen.hdl.ir import Fragment
-from bellatrix.core import Bellatrix
+from bellatrix.gateware.core import Bellatrix
 from bellatrix.config.config import logo
 from bellatrix.config.config import load_config
 from bellatrix.config.config import cpu_variants
@@ -23,8 +23,11 @@ def CPU_to_verilog(core_config: dict, vfile: str):
     # generate the verilog file
     fragment = Fragment.get(cpu, None)
     output = verilog.convert(fragment, name='bellatrix_core', ports=ports)
-    with open(vfile, 'w') as f:
-        f.write(output)
+    try:
+        with open(vfile, 'w') as f:
+            f.write(output)
+    except EnvironmentError as error:
+        print(f"Error: {error}. Check if the output path exists.", file=sys.stderr)
 
 
 def generate_verilog(args):
@@ -106,7 +109,7 @@ def main() -> None:
                             help='Print the configuration file')
     # --------------------------------------------------------------------------
     # build verilator testbench
-    p_buildtb = p_action.add_parser('buildtb', help='Build the Verilator testbench')
+    p_buildtb = p_action.add_parser('buildtb', help='Build the Verilator simulator')
     p_buildtb.add_argument('--variant', choices=cpu_variants, required=True,
                            help='CPU type')
     p_buildtb.add_argument('--config',

@@ -4,13 +4,13 @@ from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.lib.coding import PriorityEncoder
 from nmigen.build import Platform
-from bellatrix.csr import CSR
-from bellatrix.csr import AutoCSR
-from bellatrix.isa import CSRIndex
-from bellatrix.isa import ExceptionCause
-from bellatrix.isa import misa_layout, mstatus_layout, mie_layout, mtvec_layout
-from bellatrix.isa import mepc_layout, mcause_layout, mip_layout, basic_layout
-from bellatrix.isa import PrivMode
+from bellatrix.gateware.csr import CSR
+from bellatrix.gateware.csr import AutoCSR
+from bellatrix.gateware.isa import CSRIndex
+from bellatrix.gateware.isa import ExceptionCause
+from bellatrix.gateware.isa import misa_layout, mstatus_layout, mie_layout, mtvec_layout
+from bellatrix.gateware.isa import mepc_layout, mcause_layout, mip_layout, basic_layout
+from bellatrix.gateware.isa import PrivMode
 
 
 class ExceptionUnit(Elaboratable, AutoCSR):
