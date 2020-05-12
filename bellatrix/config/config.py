@@ -1,3 +1,4 @@
+import os
 import yaml
 from typing import Dict
 
@@ -14,12 +15,22 @@ header = '''\033[1;33m{logo}\033[0m
 
 \033[0;32mConfiguration\033[0;0m
 Variant name: {variant}
-Path config file: {configfile}
+Config file: {configfile}
 
 \033[0;32mBuild parameters\033[0;0m'''
 
+current_path = os.path.dirname(os.path.abspath(__file__))
+cpu_variants = ['minimal', 'lite', 'standard', 'full', 'minimal-debug', 'custom']
+config_files = {variant: f'{current_path}/{variant}.yml' for variant in cpu_variants}
+
 
 def load_config(variant: str, configfile: str, verbose: bool) -> Dict:
+    if variant == 'custom':
+        if configfile is None:
+            raise RuntimeError('A configuration file is needed for custom variant')
+    else:
+        configfile = config_files[variant]
+
     core_config = yaml.load(open(configfile).read(), Loader=yaml.Loader)
     config      = {}
 

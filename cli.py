@@ -1,90 +1,140 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 import argparse
-from nmigen import cli
+import subprocess
+from subprocess import CalledProcessError
+from nmigen.back import verilog
+from nmigen.hdl.ir import Fragment
 from bellatrix.core import Bellatrix
 from bellatrix.config.config import logo
 from bellatrix.config.config import load_config
-from testbench.verilator.generate_testbench import generate_testbench
+from bellatrix.config.config import cpu_variants
+from bellatrix.config.config import config_files
+from bellatrix.verilator.generate import generate_makefile
+from bellatrix.verilator.generate import generate_testbench
 
-current_path = os.path.dirname(os.path.realpath(__file__))
-cpu_variants = ['minimal', 'lite', 'standard', 'full', 'minimal_debug', 'custom']
-config_files = {variant: f'{current_path}/configurations/bellatrix_{variant}.yml' for variant in cpu_variants}
 
-
-def generate_verilog(parser, args):
-    # check arguments
-    variant = args.variant
-    if variant == 'custom':
-        configfile = os.path.realpath(args.config_file)
-        if configfile == '':
-            raise RuntimeError('Configuration file empty for custom variant.')
-    else:
-        configfile = config_files[variant]
-
-    # load configuration
-    core_config = load_config(variant, configfile, args.verbose)
-
-    # create the core
+def CPU_to_verilog(core_config: dict, vfile: str):
     cpu = Bellatrix(**core_config)
     ports = cpu.port_list()
 
     # generate the verilog file
-    cli.main_runner(parser, args, cpu, name='bellatrix_core', ports=ports)
-    # generate the testbench file
-    if args.top_tb:
+    fragment = Fragment.get(cpu, None)
+    output = verilog.convert(fragment, name='bellatrix_core', ports=ports)
+    with open(vfile, 'w') as f:
+        f.write(output)
+
+
+def generate_verilog(args):
+    # load configuration
+    core_config = load_config(args.variant, args.config, args.verbose)
+    CPU_to_verilog(core_config, args.filename)
+
+
+def build_testbench(args):
+    path = f'build/{args.variant}'
+
+    # check if the testbench has been built
+    if hasattr(args, 'rebuild'):
+        rebuild = args.rebuild
+    else:
+        rebuild = False
+
+    if (os.path.exists(f'{path}/core.exe') and not rebuild):
+        print('Testbench already built. Skipping.')
+        return
+
+    os.makedirs(path, exist_ok=True)
+
+    # generate verilog
+    core_config = load_config(args.variant, args.config, False)
+    CPU_to_verilog(core_config, f'{path}/bellatrix_core.v')
+
+    # generate testbench and makefile
+    generate_testbench(core_config, path)
+    generate_makefile(path)
+    # get the config file
+    if args.variant == 'custom':
+        configfile = args.config
+    else:
+        configfile = config_files[args.variant]
+
+    # run make
+    os.environ['BCONFIG'] = configfile
+    subprocess.check_call(f'make -C {path} -j$(nproc)', shell=True, stderr=subprocess.STDOUT)
+
+
+def run_compliance(args):
+    # build the testbench
+    build_testbench(args)
+
+    riscv_path = os.environ.get('RVGCC_PATH')
+    if riscv_path is None:
+        raise EnvironmentError('Environment variable "RVGCC_PATH" is undefined.')
+
+    os.environ['RISCV_PREFIX'] = f'{riscv_path}/riscv64-unknown-elf-'
+    os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{args.variant}')
+    for isa in args.isa:
         try:
-            path = os.path.dirname(args.generate_file.name)
-            if path == '':
-                path = './'
-        except AttributeError:
-            print('No verilog file has been generated. No tesbench is being generated')
-        else:
-            generate_testbench(core_config, path)
+            subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA={isa}',
+                                  shell=True, stderr=subprocess.STDOUT)
+        except CalledProcessError as error:
+            print(f"Error: {error}", file=sys.stderr)
 
 
 def main() -> None:
     class custom_formatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
         pass
 
-    parser = argparse.ArgumentParser(
-        formatter_class=custom_formatter,
-        description='''\033[1;33m{}\033[0m'''.format(logo)
-    )
+    parser = argparse.ArgumentParser(formatter_class=custom_formatter,
+                                     description='''\033[1;33m{}\033[0m'''.format(logo))
 
+    # Actions
+    p_action = parser.add_subparsers(dest='action', help='Available commands')
     # --------------------------------------------------------------------------
-    # add arguments to parser
-    parser.add_argument(
-        '--variant',
-        choices=cpu_variants,
-        default='minimal',
-        help='cpu variant'
-    )
-    parser.add_argument(
-        '--config-file',
-        default='',
-        help='configuration file for custom variants'
-    )
-    parser.add_argument(
-        '--verbose',
-        action='store_true',
-        help='print the configuration file'
-    )
-    parser.add_argument(
-        '--top-tb',
-        action='store_true',
-        help='generate testbench top file'
-    )
+    # Generate verilog
+    p_generate = p_action.add_parser('generate', help='Generate Verilog from the design')
+    p_generate.add_argument('filename', metavar="FILE",
+                            help="Write generated code to FILE")
+    p_generate.add_argument('--variant', choices=cpu_variants, required=True,
+                            help='CPU type')
+    p_generate.add_argument('--config',
+                            help='Configuration file for custom variants')
+    p_generate.add_argument('--verbose', action='store_true',
+                            help='Print the configuration file')
     # --------------------------------------------------------------------------
-    cli.main_parser(parser)
+    # build verilator testbench
+    p_buildtb = p_action.add_parser('buildtb', help='Build the Verilator testbench')
+    p_buildtb.add_argument('--variant', choices=cpu_variants, required=True,
+                           help='CPU type')
+    p_buildtb.add_argument('--config',
+                           help='Configuration file for custom variants')
+    p_buildtb.add_argument('--rebuild', action='store_true',
+                           help='Rebuild the testbench')
+    # --------------------------------------------------------------------------
+    # run compliance test
+    p_compliance = p_action.add_parser('compliance', help='Run the RISC-V compliance test')
+    p_compliance.add_argument('--rvc', required=True,
+                              help='Path to riscv-compliance')
+    p_compliance.add_argument('--variant', choices=cpu_variants, required=True,
+                              help='CPU type')
+    p_compliance.add_argument('--config',
+                              help='Configuration file for custom variants')
+    p_compliance.add_argument('--isa', choices=['rv32i', 'rv32im', 'rv32mi', 'rv32ui', 'rv32Zicsr', 'rv32Zifencei'],
+                              nargs='+', required=True, help='Available compliance tests',)
+    # --------------------------------------------------------------------------
     args = parser.parse_args()
-
+    # --------------------------------------------------------------------------
+    # execute
     if args.action == 'generate':
-        generate_verilog(parser, args)
+        generate_verilog(args)
+    elif args.action == 'buildtb':
+        build_testbench(args)
+    elif args.action == 'compliance':
+        run_compliance(args)
     else:
-        print('No valid actions.')
-        print('--------------------------------------------------')
         parser.print_help()
 
 
