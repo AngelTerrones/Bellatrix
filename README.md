@@ -1,32 +1,25 @@
 # Bellatrix
 
 Bellatrix is a CPU core that implements the [RISC-V RV32I Instruction Set][1].
-
-It is based on the [Minerva][11] CPU.
+It is based on the [Minerva][2] CPU.
 
 Bellatrix is free and open hardware licensed under the permissive two-clause BSD license.
 See LICENSE file for full copyright and license information.
 
 <!-- TOC -->
 
-- [CPU core details](#cpu-core-details)
-- [Project Details](#project-details)
-- [Directory Layout](#directory-layout)
-- [RISC-V toolchain](#risc-v-toolchain)
-- [Configuration File](#configuration-file)
-- [Core generation.](#core-generation)
-    - [Dependencies](#dependencies)
-    - [Setup development environment](#setup-development-environment)
-    - [Generate core](#generate-core)
-    - [Top module pinout](#top-module-pinout)
-- [Simulation](#simulation)
-    - [Dependencies for simulation](#dependencies-for-simulation)
-    - [Download the compliance tests](#download-the-compliance-tests)
-    - [Define `RVGCC_PATH`](#define-rvgcc_path)
-    - [Generate the C++ model and compile it](#generate-the-c-model-and-compile-it)
-    - [Run the compliance tests](#run-the-compliance-tests)
+- [Bellatrix](#bellatrix)
+    - [CPU core details](#cpu-core-details)
+    - [Project Details](#project-details)
+    - [Directory Layout](#directory-layout)
+    - [Prerequisites](#prerequisites)
+    - [Generate the core](#generate-the-core)
+        - [Configuration file](#configuration-file)
+        - [Top module pinout](#top-module-pinout)
+    - [Building the simulator](#building-the-simulator)
+    - [Running the compliance tests](#running-the-compliance-tests)
     - [Simulate execution of a single ELF file](#simulate-execution-of-a-single-elf-file)
-        - [Parameters of the C++ model](#parameters-of-the-c-model)
+            - [Parameters of the C++ model](#parameters-of-the-c-model)
 
 <!-- /TOC -->
 
@@ -40,44 +33,72 @@ See LICENSE file for full copyright and license information.
 - Optional multiplier and divider, for the RV32M ISA.
 - No MMU.
 - No FPU. Software-base floating point support (toolchain).
-- Support for Machine and User (optional) [privilege modes][2], version v1.11.
-- Support for external interrupts, as described in the [privilege mode manual][2].
-- [Wishbone B4][3] Bus Interface, in classic standard mode.
+- Support for Machine and User (optional) [privilege modes][3], version v1.11.
+- Support for external interrupts, as described in the [privilege mode manual][3].
+- Support for hardware triggers, as described in the [debug specification][11].
+- [Wishbone B4][4] Bus Interface, in classic standard mode.
 
 ## Project Details
 
-- Core described in python, using the [nMigen][4] toolbox.
-- Simulation done in C++ using [Verilator][5].
-- Toolchain using gcc.
-- [Validation suit][7] written in assembly.
+- Core described in python, using the [nMigen][5] toolbox.
+- Simulation using [Verilator][6].
 
 ## Directory Layout
 
-- `bellatrix`: CPU source files.
-- `configurations`: Configurations examples.
-- `scripts`: Scripts for installation of compliance tests, and setup development environment.
-- `testbench`: Verilator testbench, written in C++.
-- `tests`: Assembly test environment for the CPU.
-  - `extra_tests`: Aditional test for the software, timer and external interrupt interface.
+- `bellatrix`: Main package.
+  - `config`: YAML configuration files for CPU variants.
+  - `verilator`: Source files for the simulation.
+  - `gateware`: CPU source files.
 - `LICENSE`: Two-clause BSD license.
 - `README.md`: This file.
 - `cli.py`: Command line for code generation.
 
-## RISC-V toolchain
+## Prerequisites
 
-The easy way to get the toolchain is to download a prebuilt version from [SiFive][8].
+To generate the verilog file, you need to install:
 
-The version used to compile the tests is [riscv64-unknown-elf-gcc-8.3.0-2019.08.0][9]
+- [Yosys][10] v0.9 or newer.
+- [nMigen][4].
+- [nMigen-soc][12].
 
-## Configuration File
+Beware that [nMigen-soc][12] requieres a older version of [nMigen][4], so force-install it.
 
-The core configuration is done using a YAML file. The folder `configurations` has some configuration examples.
+To build the simulator:
+- [Verilator][6].
+- libelf.
+
+To run the RISC-V compliance tests:
+- [RISC-V compiler toolchain][9].
+- [RISC-V compliance tests][7].
+
+## Generate the core
+
+To generate a verilog file:
+
+```
+python3 cli.py generate --variant VARIANT [--config yaml] [--verbose] path/to/output/file.v
+```
+
+Options for VARIANT:
+
+| Variant         | Description
+| -------         | -----------
+| `minimal`       | Optional features deactivated
+| `lite`          | RV32M ISA enabled
+| `standard`      | `Lite` configuration plus branch predictor enabled
+| `full`          | `Standard` configuration plus caches enabled
+| `minimal-debug` | `Minimal` configuration plus HW triggers enabled
+| `custom`        | Custom YAML file using the `config` argument
+
+### Configuration file
+
+The configuration is done using a YAML file. The folder `bellatrix/config` has some configuration examples.
 
 The following parameters are used to configure the core:
 
 | Section     | Property           | Default value | Description
 | ----------- | ------------------ | ------------- | ------------------------------------------
-| `reset`     | `reset_address`    | `0x80000000`  | Reset address
+| `core`      | `reset_address`    | `0x80000000`  | Reset address
 | `isa`       | `enable_rv32m`     | `False`       | Enable instructions for ISA RV32M
 |             | `enable_extra_csr` | `False`       | Enable implementations of `misa`, `mhartid`, `mipid`, `marchid` and `mvendorid`
 |             | `enable_user_mode` | `False`       | Enable User priviledge mode.
@@ -86,38 +107,17 @@ The following parameters are used to configure the core:
 | `icache`    | `enable`           | `False`       | Enable instruction cache
 |             | `nlines`           | `512`         | Number of lines (power of 2)
 |             | `nwords`           | `8`           | Number of words per line. Valid: 4, 8 and 16
-|             | `nways`            | `1`           | Associativity. Valid
+|             | `nways`            | `1`           | Associativity. Valid: 1, 2
 |             | `start_addr`       | `0x80000000`  | Start address of cacheable region
 |             | `end_addr`         | `0xffffffff`  | Final address of cacheable region
 | `dcache`    | `enable`           | `False`       | Enable instruction cache
 |             | `nlines`           | `512`         | Number of lines (power of 2)
 |             | `nwords`           | `8`           | Number of words per line. Valid: 4, 8 and 16
-|             | `nways`            | `1`           | Associativity. Valid
+|             | `nways`            | `1`           | Associativity. Valid: 1, 2
 |             | `start_addr`       | `0x80000000`  | Start address of cacheable region
 |             | `end_addr`         | `0xffffffff`  | Final address of cacheable region
 | `trigger`   | `enable`           | `False`       | Enable implementation of hardware (trigger) breakpoints
 |             | `ntriggers`        | `4`           | Number of hardware (trigger) breakpoints
-
-## Core generation.
-### Dependencies
-[nMigen][4] requieres [Yosys][10] 0.9 or newer. So install it first.
-
-### Setup development environment
-
-To create a virtualenv and install [nMigen][4], execute the following command:
-> make setup-environment
-
-or just follow the install instructions in the [nMigen][4] page.
-
-### Generate core
-
-Activate the virtualenv:
-> source .venv/bin/activate
-
-Generate the core using a configuration file:
-> make generate-core VARIANT={minimal,lite,standard,full,minimal_debug,custom}
-
-The verilog file will be in `build/name_of_variant/bellatrix_core.v`
 
 ### Top module pinout
 
@@ -153,43 +153,52 @@ The pinout for the top module, `bellatrix_core`:
 | timer_interrupt    | 1    | Timer interrupt input signal
 | software_interrupt | 1    | Software interrupt input signal
 
-## Simulation
-### Dependencies for simulation
+## Building the simulator
 
-- [Verilator][5]. Minimum version: 4.0.
-- libelf.
-- The official RISC-V [toolchain][8].
+To build the simulator:
 
-### Download the compliance tests
+```
+python3 cli.py buildtb --variant VARIANT [--config CONFIG]
+```
 
-To download the [riscv-compliance][7] repository:
-> make install-compliance
+This creates a executable in `<current folder>/build/<variant>/core.exe`, which can be used to execute the RISC-V compliance tests, or execute bare-metal programs.
 
-This downloads a fork of [riscv-compliance][7] with added support for this core.
+## Running the compliance tests
 
-### Define `RVGCC_PATH`
-Before running the compliance test suit, benchmarks and extra-tests, define the variable `RVGCC_PATH` to the `bin` folder of the toolchain:
-> export RVGCC_PATH=/path/to/bin/folder/of/riscv-gcc
+To run the [riscv-compliance][7], it is necessary to first download the [repository][7]:
 
-### Generate the C++ model and compile it
-To compile the verilator testbench, execute the following command in the root folder of
-the project:
-> $ make build-core VARIANT={minimal,lite,standard,full,minimal_debug,custom}
+```
+git clone https://github.com/AngelTerrones/riscv-compliance path/to/rvcompliance
+cd path/to/rvcompliance
+git checkout nht-cores
+```
 
-### Run the compliance tests
-To perform the simulation, execute the following command in the root folder of
-the project:
-> $ make core-sim-compliance VARIANT={minimal,lite,standard,full,minimal_debug,custom}
+Then, define the the variable `RVGCC_PATH` to the `bin` folder of the RISC-V GCC toolchain:
+
+```
+export RVGCC_PATH=/path/to/bin/folder/of/riscv-gcc
+```
+
+The easy way to get the toolchain is to download a prebuilt version from [SiFive][8].
+The version used to compile the tests is [riscv64-unknown-elf-gcc-8.3.0-2019.08.0][9]
+
+Finally, execute the desired test:
+
+```
+python3 cli.py compliance --rvc path/to/rvcompliance --variant VARIANT [--config CONFIG] --isa ISA1 [ISA1, ISA2, ...]
+```
 
 Note:
 - The `rv32im` compliance tests requieres enabling the RV32M ISA.
-- The `breakpoint` test in the `rv32mi` compliance group requieres enabling the `trigger` module.
+- The `breakpoint` test in the `rv32mi` compliance set requieres enabling the `trigger` module.
 
-### Simulate execution of a single ELF file
+## Simulate execution of a single ELF file
 
-To execute a single `.elf` file:
+To execute a single `.elf` file, first build the desired simulator, then:
 
-> $ ./build/name_of_variant/core.exe --file [ELF file] --timeout [max time] --signature [signature file] --trace
+```
+./build/<variant>/core.exe --file [ELF file] --timeout [max time] --signature [signature file] --trace
+```
 
 #### Parameters of the C++ model
 
@@ -199,12 +208,14 @@ To execute a single `.elf` file:
 - `trace`: (Optional) Enable VCD dumps. Writes the output file to `build/trace_core.vcd`.
 
 [1]: https://riscv.org/specifications/
-[2]: https://riscv.org/specifications/privileged-isa/
-[3]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
-[4]: https://github.com/nmigen/nmigen/
-[5]: https://www.veripool.org/wiki/verilator
-[7]: https://github.com/riscv/riscv-compliance
+[2]: https://github.com/lambdaconcept/minerva
+[3]: https://riscv.org/specifications/privileged-isa/
+[4]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
+[5]: https://github.com/nmigen/nmigen/
+[6]: https://www.veripool.org/wiki/verilator
+[7]: http://github.com/angelterrones/riscv-compliance
 [8]: https://www.sifive.com/boards
 [9]: https://static.dev.sifive.com/dev-tools/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz
 [10]: https://github.com/YosysHQ/yosys
-[11]: https://github.com/lambdaconcept/minerva
+[11]: https://riscv.org/specifications/debug-specification/
+[12]: https://github.com/nmigen/nmigen-soc
