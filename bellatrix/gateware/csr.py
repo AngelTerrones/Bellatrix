@@ -100,7 +100,8 @@ class CSRFile(Elaboratable):
                 # Priv mode must be greater or equal to the priv mode of the register.
                 m.d.comb += [
                     invalid_ro.eq(port.addr[10:12] == 0b11),
-                    invalid_priv.eq(port.addr[8:10] > self.privmode)
+                    invalid_priv.eq(port.addr[8:10] > self.privmode),
+                    invalid_undef.eq(0)
                 ]
 
                 with m.Switch(port.addr):
