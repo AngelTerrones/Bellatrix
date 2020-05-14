@@ -30,7 +30,5 @@ class CompareUnit(Elaboratable):
                 m.d.comb += self.cmp_ok.eq(self.negative == self.overflow)
             with m.Case(Funct3.BGEU):
                 m.d.comb += self.cmp_ok.eq(~self.carry)
-            with m.Default():
-                m.d.comb += self.cmp_ok.eq(0)
 
         return m
