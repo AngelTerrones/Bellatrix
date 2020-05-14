@@ -670,7 +670,6 @@ class Bellatrix(Elaboratable):
                 x.endpoint_b.csr_we.eq(x.endpoint_a.csr_we),
                 x.endpoint_b.result.eq(x_result),
                 x.endpoint_b.compare_result.eq(compare.cmp_ok),
-                x.endpoint_b.compare_result.eq(compare.cmp_ok),
                 x.endpoint_b.jmp_branch_target.eq(Mux(x.endpoint_a.jump & x.endpoint_a.gpr_rs1_use, adder.result[1:] << 1,  x_branch_target)),
                 x.endpoint_b.take_jmp_branch.eq(x_take_jmp_branch),
                 x.endpoint_b.fetch_error.eq(x.endpoint_a.fetch_error),
