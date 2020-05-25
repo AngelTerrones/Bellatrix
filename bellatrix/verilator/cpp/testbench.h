@@ -65,6 +65,7 @@ public:
 
         virtual void Tick() {
                 m_tick_count++;
+                m_top->clk = 1;
                 Evaluate();
                 if (m_trace)
                         m_trace->dump(m_tickdiv * m_tick_count - m_tickdivh);
@@ -72,12 +73,15 @@ public:
                 Evaluate();
                 if (m_trace)
                         m_trace->dump(m_tickdiv * m_tick_count);
+                /*
+                Verilator 4.034 doesn't like using the sime timestamp multiple times...
+
                 m_top->clk = 1;
                 Evaluate();
                 if (m_trace) {
                         m_trace->dump(m_tickdiv * m_tick_count + m_tickdivh);
                         m_trace->flush();
-                }
+                }*/
         }
 
         virtual void Reset(unsigned int ticks=5) {
