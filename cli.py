@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import glob
 import sys
 import argparse
 import subprocess
@@ -14,6 +15,21 @@ from bellatrix.config.config import cpu_variants
 from bellatrix.config.config import config_files
 from bellatrix.verilator.generate import generate_makefile
 from bellatrix.verilator.generate import generate_testbench
+
+
+def need_rebuild(bfolder: str):
+    root  = os.path.dirname(os.path.abspath(__file__))
+    files = glob.glob(f'{root}/bellatrix/gateware/**/*.py', recursive=True)
+    if not os.path.exists(f'{bfolder}/bellatrix_core.v'):
+        return True
+    ref   = os.stat(f'{bfolder}/bellatrix_core.v').st_mtime_ns
+
+    for file in files:
+        tmp = os.stat(file).st_mtime_ns
+        if tmp > ref:
+            return True
+
+    return False
 
 
 def CPU_to_verilog(core_config: dict, vfile: str):
@@ -40,13 +56,10 @@ def build_testbench(args):
     path = f'build/{args.variant}'
 
     # check if the testbench has been built
-    if hasattr(args, 'rebuild'):
-        rebuild = args.rebuild
-    else:
-        rebuild = False
+    rebuild = need_rebuild(path)
 
     if (os.path.exists(f'{path}/core.exe') and not rebuild):
-        print('Testbench already built. Skipping.')
+        print('Testbench up-to-date. Skipping.')
         return
 
     os.makedirs(path, exist_ok=True)
@@ -114,8 +127,6 @@ def main() -> None:
                            help='CPU type')
     p_buildtb.add_argument('--config',
                            help='Configuration file for custom variants')
-    p_buildtb.add_argument('--rebuild', action='store_true',
-                           help='Rebuild the testbench')
     # --------------------------------------------------------------------------
     # run compliance test
     p_compliance = p_action.add_parser('compliance', help='Run the RISC-V compliance test')
