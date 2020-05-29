@@ -15,59 +15,53 @@ class FetchUnitInterface:
     def __init__(self) -> None:
         self.iport         = Interface(addr_width=32, data_width=32, granularity=32, features=['err'], name='iport')
         self.a_pc          = Signal(32)  # input
-        self.a_stall       = Signal()    # input. (needed because the unit uses the pc@address stage)
-        self.a_valid       = Signal()    # input. (needed because the unit uses the pc@address stage)
+        self.a_stall       = Signal()    # input
+        # self.f_valid       = Signal()    # input
+        self.f_kill        = Signal()    # input
         self.f_stall       = Signal()    # input
-        self.f_valid       = Signal()    # input
-        self.f_busy        = Signal()    # input
-        self.f_instruction = Signal(32)  # output
+        self.f_busy        = Signal()    # output
+        self.f_instruction = Signal(32, reset=0x00000013)  # output
         self.f_bus_error   = Signal()    # output
-        self.f_badaddr     = Signal(32)  # output
 
 
 class BasicFetchUnit(FetchUnitInterface, Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        rdata = Signal.like(self.iport.dat_r)
+        with m.FSM():
+            with m.State('IDLE'):
+                with m.If(~self.a_stall | self.f_kill):
+                    m.d.sync += [
+                        self.iport.adr.eq(self.a_pc),
+                        self.iport.cyc.eq(1),
+                        self.iport.stb.eq(1),
 
-        # handle transaction logic
-        with m.If(self.iport.cyc):
-            with m.If(self.iport.ack | self.iport.err | ~self.f_valid):
+                        self.f_bus_error.eq(0)
+                    ]
+                    m.next = 'BUSY'
+            with m.State('BUSY'):
+                m.d.comb += self.f_busy.eq(1)
+
+                with m.If(self.iport.ack | self.iport.err | self.f_kill):
+                    m.d.sync += [
+                        self.iport.adr.eq(self.a_pc),
+                        self.iport.cyc.eq(0),
+                        self.iport.stb.eq(0),
+                        self.f_instruction.eq(self.iport.dat_r),
+
+                        self.f_bus_error.eq(self.iport.err)
+                    ]
+                    m.next = 'IDLE'
+                    with m.If(self.f_kill):
+                        m.next = 'KILL'
+            with m.State('KILL'):
+                m.d.comb += self.f_busy.eq(1)
                 m.d.sync += [
-                    self.iport.cyc.eq(0),
-                    self.iport.stb.eq(0),
-                    rdata.eq(self.iport.dat_r)
+                    self.iport.cyc.eq(1),
+                    self.iport.stb.eq(1),
+                    self.f_bus_error.eq(0)
                 ]
-        with m.Elif(self.a_valid & ~self.a_stall):  # start transaction
-            m.d.sync += [
-                self.iport.adr.eq(self.a_pc),
-                self.iport.cyc.eq(1),
-                self.iport.stb.eq(1)
-            ]
-        m.d.comb += [
-            self.iport.dat_w.eq(0),
-            self.iport.sel.eq(0),
-            self.iport.we.eq(0),
-        ]
-
-        # in case of error, make the instruction a NOP
-        with m.If(self.f_bus_error):
-            m.d.comb += self.f_instruction.eq(0x00000013)  # NOP
-        with m.Else():
-            m.d.comb += self.f_instruction.eq(rdata)
-
-        # excepcion
-        with m.If(self.iport.cyc & self.iport.err):
-            m.d.sync += [
-                self.f_bus_error.eq(1),
-                self.f_badaddr.eq(self.iport.adr)
-            ]
-        with m.Elif(~self.f_stall):  # in case of error, but the pipe is stalled, do not lose the error
-            m.d.sync += self.f_bus_error.eq(0)
-
-        # busy flag
-        m.d.comb += self.f_busy.eq(self.iport.cyc)
+                m.next = 'BUSY'
 
         return m
 
@@ -110,14 +104,15 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
             icache.s1_address.eq(self.a_pc),
             icache.s1_flush.eq(self.flush),
-            icache.s1_valid.eq(self.a_valid & a_use_cache),
+            icache.s1_valid.eq(a_use_cache),
             icache.s1_stall.eq(self.a_stall),
             icache.s1_access.eq(1),
             icache.s2_address.eq(self.f_pc),
-            icache.s2_evict.eq(0),
-            icache.s2_valid.eq(self.f_valid & f_use_cache),
+            icache.s2_evict.eq(0),  # TODO check
+            icache.s2_valid.eq(f_use_cache),  # TODO & s2_valid
             icache.s2_access.eq(1),
             icache.s2_stall.eq(self.f_stall),
+            icache.s2_kill.eq(self.f_kill),
             icache.s2_re.eq(1)
         ]
 
@@ -137,33 +132,33 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         ]
 
         # drive the bare bus IO
-        rdata = Signal.like(bare_port.dat_r)
-        with m.If(bare_port.cyc):
-            with m.If(bare_port.ack | bare_port.err | ~self.f_valid):
-                m.d.sync += [
-                    bare_port.cyc.eq(0),
-                    bare_port.stb.eq(0),
-                    rdata.eq(bare_port.dat_r)
-                ]
-        with m.Elif(self.a_valid & ~self.a_stall & ~a_use_cache):
-            m.d.sync += [
-                bare_port.adr.eq(self.a_pc),
-                bare_port.cyc.eq(1),
-                bare_port.stb.eq(1)
-            ]
-        m.d.comb += [
-            bare_port.dat_w.eq(0),
-            bare_port.sel.eq(0),
-            bare_port.we.eq(0),
-            bare_port.cti.eq(CycleType.CLASSIC),
-            bare_port.bte.eq(0)
-        ]
+        rdata = Signal(32, reset=0x00000013)
+
+        with m.FSM():
+            with m.State('IDLE'):
+                with m.If(~(self.a_stall | a_use_cache)):
+                    m.d.sync += [
+                        bare_port.adr.eq(self.a_pc),
+                        bare_port.cyc.eq(1),
+                        bare_port.stb.eq(1)
+                    ]
+                    m.next = 'BUSY'
+            with m.State('BUSY'):
+                with m.If(bare_port.ack | bare_port.err):
+                    m.d.sync += [
+                        bare_port.cyc.eq(0),
+                        bare_port.stb.eq(0),
+                        rdata.eq(bare_port.dat_r)
+                    ]
+                    m.next = 'IDLE'
+            with m.State('KILL'):
+                pass
 
         # in case of error, make the instruction a NOP
         with m.If(f_use_cache):
             m.d.comb += [
                 self.f_instruction.eq(icache.s2_rdata),
-                self.f_busy.eq(icache.s2_miss & self.f_valid)
+                self.f_busy.eq(icache.s2_miss)
             ]
         with m.Elif(self.f_bus_error):
             m.d.comb += [
@@ -178,10 +173,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         # excepcion
         with m.If(self.iport.cyc & self.iport.err):
-            m.d.sync += [
-                self.f_bus_error.eq(1),
-                self.f_badaddr.eq(self.iport.adr)
-            ]
+            m.d.sync += self.f_bus_error.eq(1)
         with m.Elif(~self.f_stall):  # in case of error, but the pipe is stalled, do not lose the error
             m.d.sync += self.f_bus_error.eq(0)
 

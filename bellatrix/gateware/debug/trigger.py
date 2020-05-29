@@ -3,11 +3,9 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.gateware.csr import CSR
 from bellatrix.gateware.csr import AutoCSR
+from bellatrix.gateware.csr import CSRFile
 from bellatrix.gateware.isa import CSRIndex
-from bellatrix.gateware.isa import basic_layout
-from bellatrix.gateware.isa import tdata1_layout
 from bellatrix.gateware.isa import PrivMode
 from operator import or_
 from functools import reduce
@@ -46,19 +44,20 @@ mcontrol_layout = [
 ]
 
 
-class TriggerModule(Elaboratable, AutoCSR):
+class TriggerModule(Elaboratable):
     def __init__(self,
                  privmode: Signal,
                  ntriggers: int,
+                 csrf: CSRFile,
                  enable_user_mode: bool
                  ) -> None:
         # ----------------------------------------------------------------------
         self.ntriggers        = ntriggers
         self.enable_user_mode = enable_user_mode
         # create the registers
-        self.tselect  = CSR(CSRIndex.TSELECT, 'tselect', basic_layout)
-        self.tdata1   = CSR(CSRIndex.TDATA1, 'tdata1', tdata1_layout)
-        self.tdata2   = CSR(CSRIndex.TDATA2, 'tdata2', basic_layout)
+        self.tselect  = csrf.add_register('tselect', CSRIndex.TSELECT)
+        self.tdata1   = csrf.add_register('tdata1',  CSRIndex.TDATA1)
+        self.tdata2   = csrf.add_register('tdata2',  CSRIndex.TDATA2)
         # IO
         self.x_pc       = Signal(32)
         self.x_bus_addr = Signal(32)
@@ -73,6 +72,12 @@ class TriggerModule(Elaboratable, AutoCSR):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
+        # --------------------------------------------------------------------------------
+        # Read/write behavior for all registers in this module
+        for register in [self.tselect]:
+            with m.If(register.update):
+                m.d.sync += register.read.eq(register.write)
+
         triggers      = [Record.like(self.tdata1.read) for _ in range(self.ntriggers)]
         triggers_data = [Record.like(self.tdata2.read) for _ in range(self.ntriggers)]
 
@@ -80,7 +85,7 @@ class TriggerModule(Elaboratable, AutoCSR):
             m.d.comb += t.type.eq(TriggerType.MATCH)  # support only address/data match
 
         # handle writes to tselect
-        with m.If(self.tselect.we):
+        with m.If(self.tselect.update):
             with m.If(self.tselect.write < self.ntriggers):  # no more than ntriggers
                 m.d.sync += self.tselect.read.eq(self.tselect.write)
 
@@ -93,7 +98,7 @@ class TriggerModule(Elaboratable, AutoCSR):
                         self.tdata2.read.eq(trigger_data)  # data visible @tdata2
                     ]
                     # handle writes to tdata1
-                    with m.If(self.tdata1.we):
+                    with m.If(self.tdata1.update):
                         mcontrol = Record([('i', mcontrol_layout), ('o', mcontrol_layout)])
                         m.d.comb += [
                             mcontrol.i.eq(self.tdata1.write.data),  # casting
@@ -109,7 +114,7 @@ class TriggerModule(Elaboratable, AutoCSR):
                             trigger.data.eq(mcontrol.o)
                         ]
                     # handle writes to tdata2
-                    with m.If(self.tdata2.we):
+                    with m.If(self.tdata2.update):
                         m.d.sync += trigger_data.data.eq(self.tdata2.write)
 
         # trigger logic

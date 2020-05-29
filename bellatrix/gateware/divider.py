@@ -20,7 +20,9 @@ class Divider(Elaboratable):
         m             = Module()
 
         is_div        = Signal()
+        is_div_q      = Signal()
         is_divu       = Signal()
+        is_divu_q     = Signal()
         is_rem        = Signal()
         dividend      = Signal(32)
         divisor       = Signal(63)
@@ -44,12 +46,19 @@ class Divider(Elaboratable):
                 outsign.eq((is_div & (self.dat1[-1] ^ self.dat2[-1]) & (self.dat2 != 0)) | (is_rem & self.dat1[-1])),
                 quotient.eq(0),
                 quotient_mask.eq(1 << 31),
-                self.busy.eq(1)
+                self.busy.eq(1),
+
+                is_div_q.eq(is_div),
+                is_divu_q.eq(is_divu)
             ]
         with m.Elif(quotient_mask == 0 & self.busy):
-            m.d.sync += self.busy.eq(0)
+            m.d.sync += [
+                self.busy.eq(0),
+                is_div_q.eq(0),
+                is_divu_q.eq(0)
+            ]
 
-            with m.If(is_div | is_divu):
+            with m.If(is_div_q | is_divu_q):
                 m.d.sync += self.result.eq(Mux(outsign, -quotient, quotient))
             with m.Else():
                 m.d.sync += self.result.eq(Mux(outsign, -dividend, dividend))

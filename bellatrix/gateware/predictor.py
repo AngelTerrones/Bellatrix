@@ -1,5 +1,4 @@
 from nmigen import Cat
-from nmigen import Mux
 from nmigen import Signal
 from nmigen import Module
 from nmigen import Memory
@@ -49,11 +48,11 @@ class BranchPredictor(Elaboratable):
         ]
 
         btb    = Memory(width=_btb_width, depth=_btb_depth)
-        btb_rp = btb.read_port()
+        btb_rp = btb.read_port(transparent=False)
         btb_wp = btb.write_port()
 
         bht = Memory(width=2, depth=_btb_depth)
-        bht_rp = bht.read_port()
+        bht_rp = bht.read_port(transparent=False)
         bht_wp = bht.write_port()
 
         m.submodules += btb_rp, btb_wp
@@ -67,14 +66,17 @@ class BranchPredictor(Elaboratable):
         pstate_next = Signal(2)
 
         m.d.comb += [
-            btb_rp.addr.eq(Mux(self.a_stall, f_pc.index, a_pc.index)),
-            bht_rp.addr.eq(Mux(self.a_stall, f_pc.index, a_pc.index)),
+            btb_rp.addr.eq(a_pc.index),
+            btb_rp.en.eq(~self.a_stall),
+            bht_rp.addr.eq(a_pc.index),
+            bht_rp.en.eq(~self.a_stall),
             btb_r.eq(btb_rp.data),
             #
             a_pc.eq(self.a_pc),
             f_pc.eq(self.f_pc),
-            hit.eq(btb_r.valid & (btb_r.tag == f_pc.tag)),
-            #
+            hit.eq(btb_r.valid & (btb_r.tag == f_pc.tag))
+        ]
+        m.d.comb += [
             self.f_prediction.eq(hit & bht_rp.data[1]),
             self.f_prediction_state.eq(bht_rp.data),
             self.f_prediction_pc.eq(btb_r.target)

@@ -92,7 +92,7 @@ class LSUInterface:
         self.x_valid       = Signal()    # input
         self.x_stall       = Signal()    # input
         self.m_valid       = Signal()    # input
-        self.m_stall       = Signal()    # input
+        # self.m_stall       = Signal()    # input
         self.m_load_data   = Signal(32)  # output
         self.m_busy        = Signal()    # output
         self.m_load_error  = Signal()    # output
@@ -104,43 +104,39 @@ class BasicLSU(LSUInterface, Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        op = Signal()
-
-        m.d.comb += op.eq(self.x_load | self.x_store)
-
-        # transaction logic
-        with m.If(self.dport.cyc):
-            with m.If(self.dport.ack | self.dport.err | ~self.m_valid):
+        with m.FSM():
+            with m.State('IDLE'):
                 m.d.sync += [
-                    self.m_load_data.eq(self.dport.dat_r),
-                    self.dport.we.eq(0),
-                    self.dport.cyc.eq(0),
-                    self.dport.stb.eq(0)
+                    self.m_load_error.eq(0),
+                    self.m_store_error.eq(0)
                 ]
-        with m.Elif(op & self.x_valid & ~self.x_stall):
-            m.d.sync += [
-                self.dport.adr.eq(self.x_addr),
-                self.dport.dat_w.eq(self.x_data_w),
-                self.dport.sel.eq(self.x_byte_sel),
-                self.dport.we.eq(self.x_store),
-                self.dport.cyc.eq(1),
-                self.dport.stb.eq(1)
-            ]
+                with m.If((self.x_load | self.x_store) & self.x_valid & ~self.x_stall):
+                    m.d.sync += [
+                        self.dport.adr.eq(self.x_addr),
+                        self.dport.dat_w.eq(self.x_data_w),
+                        self.dport.sel.eq(self.x_byte_sel),
+                        self.dport.we.eq(self.x_store),
+                        self.dport.cyc.eq(1),
+                        self.dport.stb.eq(1)
+                    ]
+                    m.next = 'BUSY'
+            with m.State('BUSY'):
+                m.d.comb += self.m_busy.eq(1)
 
-        # exceptions
-        with m.If(self.dport.cyc & self.dport.err):
-            m.d.sync += [
-                self.m_load_error.eq(~self.dport.we),
-                self.m_store_error.eq(self.dport.we),
-                self.m_badaddr.eq(self.dport.adr)
-            ]
-        with m.Elif(~self.m_stall):
-            m.d.sync += [
-                self.m_load_error.eq(0),
-                self.m_store_error.eq(0)
-            ]
-
-        m.d.comb += self.m_busy.eq(self.dport.cyc)
+                with m.If(self.dport.err):
+                    m.d.sync += [
+                        self.m_load_error.eq(~self.dport.we),
+                        self.m_store_error.eq(self.dport.we),
+                        self.m_badaddr.eq(self.dport.adr)
+                    ]
+                with m.If(self.dport.ack | self.dport.err | ~self.m_valid):
+                    m.d.sync += [
+                        self.m_load_data.eq(self.dport.dat_r),
+                        self.dport.we.eq(0),
+                        self.dport.cyc.eq(0),
+                        self.dport.stb.eq(0)
+                    ]
+                    m.next = 'IDLE'
 
         return m
 

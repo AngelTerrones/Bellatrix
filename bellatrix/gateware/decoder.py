@@ -10,7 +10,6 @@ from bellatrix.gateware.isa import Opcode
 from bellatrix.gateware.isa import PrivMode
 from functools import reduce
 from operator import or_
-from typing import Tuple, List, Optional
 from enum import IntEnum
 
 
@@ -27,56 +26,58 @@ class DecoderUnit(Elaboratable):
     def __init__(self, enable_rv32m: bool) -> None:
         self.enable_rv32m = enable_rv32m
 
-        self.instruction     = Signal(32)  # input
-        self.gpr_rs1         = Signal(5)   # output
-        self.gpr_rs1_use     = Signal()    # output
-        self.gpr_rs2         = Signal(5)   # output
-        self.gpr_rs2_use     = Signal()    # output
-        self.gpr_rd          = Signal(5)   # output
-        self.gpr_we          = Signal()    # output
-        self.immediate       = Signal(32)  # output
-        self.lui             = Signal()    # output
-        self.aiupc           = Signal()    # output
-        self.jump            = Signal()    # output
-        self.branch          = Signal()    # output
-        self.load            = Signal()    # output
-        self.store           = Signal()    # output
-        self.aritmetic       = Signal()    # output
-        self.substract       = Signal()    # output
-        self.logic           = Signal()    # output
-        self.shift           = Signal()    # output
-        self.shift_direction = Signal()    # output
-        self.shit_signed     = Signal()    # output
-        self.compare         = Signal()    # output
-        self.csr             = Signal()    # output
-        self.csr_we          = Signal()    # output
-        self.funct3          = Signal(Funct3)   # output
-        self.needed_in_x     = Signal()    # output
-        self.needed_in_m     = Signal()    # output
-        self.ecall           = Signal()    # output
-        self.ebreak          = Signal()    # output
-        self.mret            = Signal()    # output
-        self.fence_i         = Signal()    # output
-        self.fence           = Signal()    # output
-        self.illegal         = Signal()    # output
-        self.multiply        = Signal()    # output
-        self.divide          = Signal()    # output
-        self.privmode        = Signal(PrivMode)   # output
+        self.instruction     = Signal(32)
+        self.instruction2    = Signal(32)
+        self.funct3          = Signal(Funct3)
+        self.gpr_rs1         = Signal(5)
+        self.gpr_rs1_use     = Signal()
+        self.gpr_rs2         = Signal(5)
+        self.gpr_rs2_use     = Signal()
+        self.gpr_rd          = Signal(5)
+        self.gpr_we          = Signal()
+        self.immediate       = Signal(32)
+        self.lui             = Signal()
+        self.aiupc           = Signal()
+        self.jump            = Signal()
+        self.branch          = Signal()
+        self.load            = Signal()
+        self.store           = Signal()
+        self.aritmetic       = Signal()
+        self.substract       = Signal()
+        self.logic           = Signal()
+        self.shift           = Signal()
+        self.shift_direction = Signal()
+        self.shit_signed     = Signal()
+        self.compare         = Signal()
+        self.csr             = Signal()
+        self.csr_we          = Signal()
+        self.needed_in_m     = Signal()
+        self.needed_in_w     = Signal()
+        self.ecall           = Signal()
+        self.ebreak          = Signal()
+        self.mret            = Signal()
+        self.fence_i         = Signal()
+        self.fence           = Signal()
+        self.multiply        = Signal()
+        self.divide          = Signal()
+        self.illegal         = Signal()
+        self.privmode        = Signal(PrivMode)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        opcode      = Signal(Opcode)
-        funct3      = Signal(Funct3)
-        funct7      = Signal(Funct7)
-        funct12     = Signal(Funct12)
-        iimm12      = Signal((12, True))
-        simm12      = Signal((12, True))
-        bimm12      = Signal((13, True))
-        uimm20      = Signal(20)
-        jimm20      = Signal((21, True))
-        itype       = Signal(Type)
-        instruction = self.instruction
+        opcode       = Signal(Opcode)
+        funct3       = Signal(Funct3)
+        funct7       = Signal(Funct7)
+        funct12      = Signal(Funct12)
+        iimm12       = Signal((12, True))
+        simm12       = Signal((12, True))
+        bimm12       = Signal((13, True))
+        uimm20       = Signal(20)
+        jimm20       = Signal((21, True))
+        itype        = Signal(Type)
+        instruction  = self.instruction
+        instruction2 = self.instruction2
 
         with m.Switch(opcode):
             with m.Case(Opcode.LUI):
@@ -129,33 +130,31 @@ class DecoderUnit(Elaboratable):
         ]
 
         m.d.comb += [
-            self.gpr_rs1.eq(instruction[15:20]),
+            self.gpr_rs1.eq(instruction2[15:20]),
             self.gpr_rs1_use.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.I, Type.S, Type.B)])),
-            self.gpr_rs2.eq(instruction[20:25]),
+            self.gpr_rs2.eq(instruction2[20:25]),
             self.gpr_rs2_use.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.S, Type.B)])),
-            self.gpr_rd.eq(instruction[7:12]),
+            self.gpr_rd.eq(instruction2[7:12]),
             self.gpr_we.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.I, Type.U, Type.J)])),
             self.funct3.eq(funct3)
         ]
 
         m.d.comb += [
-            self.needed_in_x.eq(self.lui | self.aiupc | self.jump | self.aritmetic | self.logic | self.multiply),
-            self.needed_in_m.eq(self.compare | self.shift | self.divide),
+            self.needed_in_m.eq(self.compare | self.shift),
+            self.needed_in_w.eq(self.csr | self.load),
         ]
 
         # ----------------------------------------------------------------------
-        # define functions to handle the match
-        Fields = List[Tuple[int, Optional[int], Optional[int], Optional[int]]]  # Tuple: (Opcode, F3, F7, F12)
-
-        def match(fields: Fields) -> bool:
-            def __check(op, f3=None, f7=None, f12=None):
+        # Fields = list of (Opcode, F3, F7, F12)
+        def match(fields):
+            def check(op, f3=None, f7=None, f12=None):
                 op_match  = opcode == op
                 f3_match  = funct3 == f3 if f3 is not None else 1
                 f7_match  = funct7 == f7 if f7 is not None else 1
                 f12_match = funct12 == f12 if f12 is not None else 1
                 return op_match & f3_match & f7_match & f12_match
 
-            return reduce(or_, [__check(*instr) for instr in fields])
+            return reduce(or_, [check(*instr) for instr in fields])
         # ----------------------------------------------------------------------
 
         m.d.comb += [
@@ -240,7 +239,7 @@ class DecoderUnit(Elaboratable):
             ])),
             self.shift_direction.eq(funct3 == Funct3.SR),
             self.shit_signed.eq(funct7 == Funct7.SRA),
-            self.csr_we.eq(~funct3[1] | (self.gpr_rs1 != 0)),
+            self.csr_we.eq(~funct3[1] | self.gpr_rs1.any()),
         ]
 
         if (self.enable_rv32m):
