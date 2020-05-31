@@ -14,14 +14,13 @@ from bellatrix.gateware.wishbone import Arbiter
 class FetchUnitInterface:
     def __init__(self) -> None:
         self.iport         = Interface(addr_width=32, data_width=32, granularity=32, features=['err'], name='iport')
-        self.a_pc          = Signal(32)  # input
-        self.a_stall       = Signal()    # input
-        # self.f_valid       = Signal()    # input
+        self.f_pc          = Signal(32)  # input
         self.f_kill        = Signal()    # input
-        self.f_stall       = Signal()    # input
         self.f_busy        = Signal()    # output
+        self.f2_pc         = Signal(32)  # output
         self.f_instruction = Signal(32, reset=0x00000013)  # output
         self.f_bus_error   = Signal()    # output
+        self.d_stall       = Signal()    # input
 
 
 class BasicFetchUnit(FetchUnitInterface, Elaboratable):
@@ -30,9 +29,12 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
 
         with m.FSM():
             with m.State('IDLE'):
-                with m.If(~self.a_stall | self.f_kill):
+                with m.If(self.f_kill | ~self.d_stall):
+                    m.d.sync += self.f_instruction.eq(0x00000013)
+                with m.If(~(self.d_stall | self.f_kill)):
                     m.d.sync += [
-                        self.iport.adr.eq(self.a_pc),
+                        self.f2_pc.eq(self.f_pc),
+                        self.iport.adr.eq(self.f_pc),
                         self.iport.cyc.eq(1),
                         self.iport.stb.eq(1),
 
@@ -41,10 +43,8 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
                     m.next = 'BUSY'
             with m.State('BUSY'):
                 m.d.comb += self.f_busy.eq(1)
-
                 with m.If(self.iport.ack | self.iport.err | self.f_kill):
                     m.d.sync += [
-                        self.iport.adr.eq(self.a_pc),
                         self.iport.cyc.eq(0),
                         self.iport.stb.eq(0),
                         self.f_instruction.eq(self.iport.dat_r),
@@ -52,16 +52,8 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
                         self.f_bus_error.eq(self.iport.err)
                     ]
                     m.next = 'IDLE'
-                    with m.If(self.f_kill):
-                        m.next = 'KILL'
-            with m.State('KILL'):
-                m.d.comb += self.f_busy.eq(1)
-                m.d.sync += [
-                    self.iport.cyc.eq(1),
-                    self.iport.stb.eq(1),
-                    self.f_bus_error.eq(0)
-                ]
-                m.next = 'BUSY'
+                with m.If(self.f_kill):
+                    m.d.sync += self.f_instruction.eq(0x00000013)
 
         return m
 

@@ -140,7 +140,7 @@ class DecoderUnit(Elaboratable):
         ]
 
         m.d.comb += [
-            self.needed_in_m.eq(self.compare | self.shift),
+            self.needed_in_m.eq(self.compare | self.shift | self.divide),
             self.needed_in_w.eq(self.csr | self.load),
         ]
 

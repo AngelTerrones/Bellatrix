@@ -51,7 +51,7 @@ class Cache(Elaboratable):
         offset_bits       = log2_int(nwords)
         line_bits         = log2_int(nlines)
         addr_bits         = log2_int(end_addr - start_addr, need_pow2=False)
-        tag_bits          = addr_bits - line_bits - offset_bits - 2  # -2 because word line.
+        tag_bits          = addr_bits - line_bits - offset_bits - 2
         extra_bits        = 32 - tag_bits - line_bits - offset_bits - 2
 
         self.pc_layout = [

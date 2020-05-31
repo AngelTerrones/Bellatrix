@@ -13,9 +13,9 @@ class BranchPredictor(Elaboratable):
         # ----------------------------------------------------------------------
         self.predictor_size   = predictor_size
 
-        self.a_pc               = Signal(32)  # input
-        self.a_stall            = Signal()    # input
         self.f_pc               = Signal(32)  # input
+        self.f_stall            = Signal()    # input
+        self.f2_pc              = Signal(32)  # input
         self.f_prediction       = Signal()    # output
         self.f_prediction_state = Signal(2)   # output
         self.f_prediction_pc    = Signal(32)  # output
@@ -59,22 +59,22 @@ class BranchPredictor(Elaboratable):
         m.submodules += bht_rp, bht_wp
 
         btb_r       = Record(_btb_layout)
-        a_pc        = Record(_pc_layout)
         f_pc        = Record(_pc_layout)
+        f2_pc       = Record(_pc_layout)
         m_pc        = Record(_pc_layout)
         hit         = Signal()
         pstate_next = Signal(2)
 
         m.d.comb += [
-            btb_rp.addr.eq(a_pc.index),
-            btb_rp.en.eq(~self.a_stall),
-            bht_rp.addr.eq(a_pc.index),
-            bht_rp.en.eq(~self.a_stall),
+            btb_rp.addr.eq(f_pc.index),
+            btb_rp.en.eq(~self.f_stall),
+            bht_rp.addr.eq(f_pc.index),
+            bht_rp.en.eq(~self.f_stall),
             btb_r.eq(btb_rp.data),
             #
-            a_pc.eq(self.a_pc),
             f_pc.eq(self.f_pc),
-            hit.eq(btb_r.valid & (btb_r.tag == f_pc.tag))
+            f2_pc.eq(self.f2_pc),
+            hit.eq(btb_r.valid & (btb_r.tag == f2_pc.tag))
         ]
         m.d.comb += [
             self.f_prediction.eq(hit & bht_rp.data[1]),

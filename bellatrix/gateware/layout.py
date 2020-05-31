@@ -74,6 +74,7 @@ _xm_layout = [
     ('ls_addr',           32),
     ('zero',               1),
     ('zero2',              1),
+    ('negative',           1),
     ('overflow',           1),
     ('carry',              1),
     ('jb_target',         32),
