@@ -152,14 +152,6 @@ class Bellatrix(Elaboratable):
         data_sel  = cpu.submodules.data_sel  = DataFormat()
         if self.icache_enable:
             fetch = cpu.submodules.fetch = CachedFetchUnit(**self.icache_kwargs)
-            # connect the data port to the "internal snoop bus"
-            # TODO need to change the name...
-            cpu.d.comb += [
-                fetch.dcache_snoop.addr.eq(self.dport.adr),
-                fetch.dcache_snoop.we.eq(self.dport.we),
-                fetch.dcache_snoop.valid.eq(self.dport.cyc),
-                fetch.dcache_snoop.ack.eq(self.dport.ack)
-            ]
         else:
             fetch = cpu.submodules.fetch = BasicFetchUnit()
         if self.dcache_enable:
@@ -224,7 +216,7 @@ class Bellatrix(Elaboratable):
             cpu.d.comb += a_pc.eq(f.endpoint_a.pc + 4)
 
         a.add_kill_source(m_kill_jb)
-        a.add_kill_source(x.endpoint_a.fence_i & ~x.stall)  # TODO stall???
+        a.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
         a.add_kill_source(exception.m_exception)
         a.add_kill_source(m.endpoint_a.mret)
         # ----------------------------------------------------------------------
@@ -241,9 +233,13 @@ class Bellatrix(Elaboratable):
             with cpu.Else():
                 cpu.d.comb += fetch.f_pc.eq(f.endpoint_a.pc)
 
+        if self.icache_enable:
+            flush_icache = x.endpoint_a.fence_i
+            cpu.d.comb += fetch.flush.eq(flush_icache)
+
         f.add_stall_source(fetch.f_busy)
         f.add_kill_source(m_kill_jb)
-        f.add_kill_source(x.endpoint_a.fence_i & ~x.stall)  # TODO stall???
+        f.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
         f.add_kill_source(exception.m_exception)
         f.add_kill_source(m.endpoint_a.mret)
         # ----------------------------------------------------------------------

@@ -11,7 +11,7 @@ from nmigen.lib.fifo import SyncFIFOBuffered
 from nmigen_soc.wishbone.bus import CycleType
 from nmigen_soc.wishbone.bus import Interface
 from bellatrix.gateware.isa import Funct3
-from bellatrix.gateware.cache import Cache
+from bellatrix.gateware.cache import DCache
 from bellatrix.gateware.wishbone import Arbiter
 
 
@@ -169,7 +169,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         wbuffer_din  = Record(wbuffer_layout)
         wbuffer_dout = Record(wbuffer_layout)
 
-        dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
+        dcache  = m.submodules.dcache  = DCache(enable_write=True, **self.cache_kwargs)
         arbiter = m.submodules.arbiter = Arbiter(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'])
         wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
 
