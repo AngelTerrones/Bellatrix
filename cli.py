@@ -53,33 +53,34 @@ def generate_verilog(args):
 
 
 def build_testbench(args):
-    path = f'build/{args.variant}'
+    for variant in args.variant:
+        path = f'build/{variant}'
 
-    # check if the testbench has been built
-    rebuild = need_rebuild(path)
+        # check if the testbench has been built
+        rebuild = need_rebuild(path)
 
-    if (os.path.exists(f'{path}/core.exe') and not rebuild):
-        print('Testbench up-to-date. Skipping.')
-        return
+        if (os.path.exists(f'{path}/core.exe') and not rebuild):
+            print('Testbench up-to-date. Skipping.')
+            return
 
-    os.makedirs(path, exist_ok=True)
+        os.makedirs(path, exist_ok=True)
 
-    # generate verilog
-    core_config = load_config(args.variant, args.config, False)
-    CPU_to_verilog(core_config, f'{path}/bellatrix_core.v')
+        # generate verilog
+        core_config = load_config(variant, args.config, False)
+        CPU_to_verilog(core_config, f'{path}/bellatrix_core.v')
 
-    # generate testbench and makefile
-    generate_testbench(core_config, path)
-    generate_makefile(path)
-    # get the config file
-    if args.variant == 'custom':
-        configfile = args.config
-    else:
-        configfile = config_files[args.variant]
+        # generate testbench and makefile
+        generate_testbench(core_config, path)
+        generate_makefile(path)
+        # get the config file
+        if variant == 'custom':
+            configfile = args.config
+        else:
+            configfile = config_files[variant]
 
-    # run make
-    os.environ['BCONFIG'] = configfile
-    subprocess.check_call(f'make -C {path} -j$(nproc)', shell=True, stderr=subprocess.STDOUT)
+        # run make
+        os.environ['BCONFIG'] = configfile
+        subprocess.check_call(f'make -C {path} -j$(nproc)', shell=True, stderr=subprocess.STDOUT)
 
 
 def run_compliance(args):
@@ -91,13 +92,30 @@ def run_compliance(args):
         raise EnvironmentError('Environment variable "RVGCC_PATH" is undefined.')
 
     os.environ['RISCV_PREFIX'] = f'{riscv_path}/riscv64-unknown-elf-'
-    os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{args.variant}')
-    for isa in args.isa:
-        try:
-            subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA={isa}',
-                                  shell=True, stderr=subprocess.STDOUT)
-        except CalledProcessError as error:
-            print(f"Error: {error}", file=sys.stderr)
+
+    variant_msg = []
+    for variant in args.variant:
+        os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{variant}')
+        isa_msg = []
+        for isa in args.isa:
+            try:
+                subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA={isa}',
+                                      shell=True, stderr=subprocess.STDOUT)
+                isa_msg.append(f'{isa} test ended sucessfully.')
+            except CalledProcessError as error:
+                print(f"Error: {error}", file=sys.stderr)
+                isa_msg.append(f'{isa} test with errors.')
+
+        variant_msg.append(isa_msg)
+
+    print('\n------------------------------------------------------------')
+    print('Results:')
+    print('------------------------------------------------------------')
+    for variant, msg in zip(args.variant, variant_msg):
+        print(f'{variant} configuration:')
+        for tmp in msg:
+            print(f'\t{tmp}')
+    print('------------------------------------------------------------')
 
 
 def main() -> None:
@@ -123,7 +141,7 @@ def main() -> None:
     # --------------------------------------------------------------------------
     # build verilator testbench
     p_buildtb = p_action.add_parser('buildtb', help='Build the Verilator simulator')
-    p_buildtb.add_argument('--variant', choices=cpu_variants, required=True,
+    p_buildtb.add_argument('--variant', choices=cpu_variants, nargs='+', required=True,
                            help='CPU type')
     p_buildtb.add_argument('--config',
                            help='Configuration file for custom variants')
@@ -132,7 +150,7 @@ def main() -> None:
     p_compliance = p_action.add_parser('compliance', help='Run the RISC-V compliance test')
     p_compliance.add_argument('--rvc', required=True,
                               help='Path to riscv-compliance')
-    p_compliance.add_argument('--variant', choices=cpu_variants, required=True,
+    p_compliance.add_argument('--variant', choices=cpu_variants, nargs='+', required=True,
                               help='CPU type')
     p_compliance.add_argument('--config',
                               help='Configuration file for custom variants')
