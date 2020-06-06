@@ -33,7 +33,7 @@ def generate_testbench(config: Dict, path: str) -> None:
 
 
 def generate_makefile(path: str):
-    print(f'\033[0;32mVerilator makefile\033[0;0m: {path}makefile')
+    print(f'\033[0;32mVerilator makefile\033[0;0m: {path}/makefile')
 
     data = dict(TVERILATOR=current_path)
 
