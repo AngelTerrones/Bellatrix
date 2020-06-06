@@ -11,7 +11,7 @@ from nmigen.lib.fifo import SyncFIFOBuffered
 from nmigen_soc.wishbone.bus import CycleType
 from nmigen_soc.wishbone.bus import Interface
 from bellatrix.gateware.isa import Funct3
-from bellatrix.gateware.cache import DCache
+from bellatrix.gateware.cache import Cache
 from bellatrix.gateware.wishbone import Arbiter
 
 
@@ -89,10 +89,8 @@ class LSUInterface:
         self.x_store       = Signal()    # input
         self.x_load        = Signal()    # input
         self.x_byte_sel    = Signal(4)   # input
-        self.x_valid       = Signal()    # input
-        self.x_stall       = Signal()    # input
-        self.m_valid       = Signal()    # input
-        # self.m_stall       = Signal()    # input
+        self.x_enable      = Signal()    # input
+        self.m_stall       = Signal()    # input
         self.m_load_data   = Signal(32)  # output
         self.m_busy        = Signal()    # output
         self.m_load_error  = Signal()    # output
@@ -110,7 +108,7 @@ class BasicLSU(LSUInterface, Elaboratable):
                     self.m_load_error.eq(0),
                     self.m_store_error.eq(0)
                 ]
-                with m.If((self.x_load | self.x_store) & self.x_valid & ~self.x_stall):
+                with m.If((self.x_load | self.x_store) & self.x_enable & ~self.m_stall):
                     m.d.sync += [
                         self.dport.adr.eq(self.x_addr),
                         self.dport.dat_w.eq(self.x_data_w),
@@ -129,7 +127,7 @@ class BasicLSU(LSUInterface, Elaboratable):
                         self.m_store_error.eq(self.dport.we),
                         self.m_badaddr.eq(self.dport.adr)
                     ]
-                with m.If(self.dport.ack | self.dport.err | ~self.m_valid):
+                with m.If(self.dport.ack | self.dport.err):
                     m.d.sync += [
                         self.m_load_data.eq(self.dport.dat_r),
                         self.dport.we.eq(0),
@@ -150,6 +148,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         self.start_addr   = cache_kwargs['start_addr']
         self.end_addr     = cache_kwargs['end_addr']
         self.nwords       = cache_kwargs['nwords']
+        # IO
         self.x_fence_i    = Signal()    # input
         self.x_fence      = Signal()    # input
         self.x_busy       = Signal()    # input
@@ -169,7 +168,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         wbuffer_din  = Record(wbuffer_layout)
         wbuffer_dout = Record(wbuffer_layout)
 
-        dcache  = m.submodules.dcache  = DCache(enable_write=True, **self.cache_kwargs)
+        dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
         arbiter = m.submodules.arbiter = Arbiter(addr_width=32, data_width=32, granularity=8, features=['err', 'cti', 'bte'])
         wbuffer = m.submodules.wbuffer = SyncFIFOBuffered(width=len(wbuffer_din), depth=self.nwords)
 
@@ -185,7 +184,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
         m.d.comb += x_use_cache.eq((self.x_addr[bits_range:] == (self.start_addr >> bits_range)))
 
-        with m.If(~self.x_stall):
+        with m.If(~self.m_stall):
             m.d.sync += [
                 m_use_cache.eq(x_use_cache),
                 m_data_w.eq(self.x_data_w),
@@ -198,7 +197,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         m.d.comb += [
             # input
             wbuffer.w_data.eq(wbuffer_din),
-            wbuffer.w_en.eq(x_use_cache & self.x_store & self.x_valid & ~self.x_stall),
+            wbuffer.w_en.eq(x_use_cache & self.x_store & ~self.m_stall & self.x_enable),
             wbuffer_din.addr.eq(self.x_addr),
             wbuffer_din.data.eq(self.x_data_w),
             wbuffer_din.sel.eq(self.x_byte_sel),
@@ -207,32 +206,40 @@ class CachedLSU(LSUInterface, Elaboratable):
         ]
 
         # drive the arbiter port
-        with m.If(wbuffer_port.cyc):
-            with m.If(wbuffer_port.ack | wbuffer_port.err):
-                m.d.comb += wbuffer.r_en.eq(1)
-                m.d.sync += wbuffer_port.stb.eq(0)
-                with m.If(wbuffer.level == 1):  # Buffer is empty
+        with m.FSM():
+            with m.State('IDLE'):
+                with m.If(wbuffer.r_rdy):
                     m.d.sync += [
-                        wbuffer_port.cyc.eq(0),
-                        wbuffer_port.we.eq(0)
+                        wbuffer_port.cyc.eq(1),
+                        wbuffer_port.stb.eq(1),
+                        wbuffer_port.we.eq(1),
+                        wbuffer_port.adr.eq(wbuffer_dout.addr),
+                        wbuffer_port.dat_w.eq(wbuffer_dout.data),
+                        wbuffer_port.sel.eq(wbuffer_dout.sel)
                     ]
-            with m.Elif(~wbuffer_port.stb):
+                    m.next = 'BUSY'
+            with m.State('BUSY'):
+                with m.If(wbuffer_port.ack | wbuffer_port.err):
+                    m.d.comb += wbuffer.r_en.eq(1)
+                    m.d.sync += wbuffer_port.stb.eq(0)
+
+                    with m.If(wbuffer.level == 1):  # Buffer is empty (next clock, ofc)
+                        m.d.sync += [
+                            wbuffer_port.cyc.eq(0),
+                            wbuffer_port.we.eq(0)
+                        ]
+                        m.next = 'IDLE'
+                    with m.Else():
+                        m.next = 'WAIT'
+            with m.State('WAIT'):
                 m.d.sync += [
                     wbuffer_port.stb.eq(1),
                     wbuffer_port.adr.eq(wbuffer_dout.addr),
                     wbuffer_port.dat_w.eq(wbuffer_dout.data),
                     wbuffer_port.sel.eq(wbuffer_dout.sel)
                 ]
-        with m.Elif(wbuffer.r_rdy):
-            m.d.sync += [
-                wbuffer_port.cyc.eq(1),
-                wbuffer_port.stb.eq(1),
-                wbuffer_port.we.eq(1),
-                wbuffer_port.adr.eq(wbuffer_dout.addr),
-                wbuffer_port.dat_w.eq(wbuffer_dout.data),
-                wbuffer_port.sel.eq(wbuffer_dout.sel)
-            ]
-            m.d.comb += wbuffer.r_en.eq(0)
+                m.next = 'BUSY'
+
         m.d.comb += [
             wbuffer_port.cti.eq(CycleType.CLASSIC),
             wbuffer_port.bte.eq(0)
@@ -242,16 +249,10 @@ class CachedLSU(LSUInterface, Elaboratable):
         # connect IO: cache
         m.d.comb += [
             dcache.s1_address.eq(self.x_addr),
-            dcache.s1_flush.eq(0),
-            dcache.s1_valid.eq(self.x_valid),
-            dcache.s1_stall.eq(self.x_stall),
-            dcache.s1_access.eq(self.x_load | self.x_store),
+            dcache.s1_flush.eq(0),              # TODO: connect
             dcache.s2_address.eq(self.m_addr),
-            dcache.s2_evict.eq(0),  # Evict is not used. Remove maybe?
-            dcache.s2_valid.eq(self.m_valid),
-            dcache.s2_stall.eq(self.m_stall),
-            dcache.s2_access.eq(self.m_load | self.m_store),
-            dcache.s2_re.eq(self.m_load),
+            dcache.s2_valid.eq(m_use_cache & self.m_load),    # address in range, and load. Ignore stores
+            dcache.s2_stall.eq(0),
             dcache.s2_wdata.eq(m_data_w),
             dcache.s2_sel.eq(m_byte_sel),
             dcache.s2_we.eq(self.m_store)
@@ -280,23 +281,28 @@ class CachedLSU(LSUInterface, Elaboratable):
         m.d.comb += op.eq(self.x_load | self.x_store)
 
         # transaction logic
-        with m.If(bare_port.cyc):
-            with m.If(bare_port.ack | bare_port.err | ~self.m_valid):
-                m.d.sync += [
-                    rdata.eq(bare_port.dat_r),
-                    bare_port.we.eq(0),
-                    bare_port.cyc.eq(0),
-                    bare_port.stb.eq(0)
-                ]
-        with m.Elif(op & self.x_valid & ~self.x_stall & ~x_use_cache):
-            m.d.sync += [
-                bare_port.adr.eq(self.x_addr),
-                bare_port.dat_w.eq(self.x_data_w),
-                bare_port.sel.eq(self.x_byte_sel),
-                bare_port.we.eq(self.x_store),
-                bare_port.cyc.eq(1),
-                bare_port.stb.eq(1)
-            ]
+        with m.FSM():
+            with m.State('IDLE'):
+                with m.If(op & ~self.m_stall & ~x_use_cache):
+                    m.d.sync += [
+                        bare_port.adr.eq(self.x_addr),
+                        bare_port.dat_w.eq(self.x_data_w),
+                        bare_port.sel.eq(self.x_byte_sel),
+                        bare_port.we.eq(self.x_store),
+                        bare_port.cyc.eq(1),
+                        bare_port.stb.eq(1)
+                    ]
+                    m.next = 'BUSY'
+            with m.State('BUSY'):
+                with m.If(bare_port.ack | bare_port.err):
+                    m.d.sync += [
+                        rdata.eq(bare_port.dat_r),
+                        bare_port.we.eq(0),
+                        bare_port.cyc.eq(0),
+                        bare_port.stb.eq(0)
+                    ]
+                    m.next = 'IDLE'
+
         m.d.comb += [
             bare_port.cti.eq(CycleType.CLASSIC),
             bare_port.bte.eq(0)
@@ -311,9 +317,9 @@ class CachedLSU(LSUInterface, Elaboratable):
         with m.Else():
             m.d.comb += self.x_busy.eq(bare_port.cyc)
 
-        with m.If(m_use_cache):
+        with m.If(m_use_cache & self.m_load):
             m.d.comb += [
-                self.m_busy.eq(dcache.s2_re & dcache.s2_miss),
+                self.m_busy.eq(dcache.s2_miss),
                 self.m_load_data.eq(dcache.s2_rdata)
             ]
         with m.Elif(self.m_load_error | self.m_store_error):
@@ -335,7 +341,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                 self.m_store_error.eq(self.dport.we),
                 self.m_badaddr.eq(self.dport.adr)
             ]
-        with m.Elif(~self.m_stall):
+        with m.Else():
             m.d.sync += [
                 self.m_load_error.eq(0),
                 self.m_store_error.eq(0)

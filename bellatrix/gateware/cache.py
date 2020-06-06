@@ -1,3 +1,5 @@
+from nmigen import Cat
+from nmigen import Mux
 from nmigen import Repl
 from nmigen import Const
 from nmigen import Array
@@ -11,13 +13,14 @@ from nmigen.utils import log2_int
 from nmigen.build import Platform
 
 
-class ICache(Elaboratable):
+class Cache(Elaboratable):
     def __init__(self,
-                 nlines: int,           # number of lines
-                 nwords: int,           # number of words x line x way
-                 nways: int,            # number of ways
-                 start_addr: int = 0,   # start of cacheable region
-                 end_addr: int = 2**32  # end of cacheable region
+                 nlines: int,               # number of lines
+                 nwords: int,               # number of words x line x way
+                 nways: int,                # number of ways
+                 start_addr: int = 0,       # start of cacheable region
+                 end_addr: int = 2**32,     # end of cacheable region
+                 enable_write: bool = True  # enable writes to cache
                  ) -> None:
         # enable write -> data cache
         if nlines == 0 or (nlines & (nlines - 1)):
@@ -27,6 +30,7 @@ class ICache(Elaboratable):
         if nways not in (1, 2):
             raise ValueError(f'nways must be 1 or 2: {nways}')
 
+        self.enable_write = enable_write
         self.nlines       = nlines
         self.nwords       = nwords
         self.nways        = nways
@@ -58,6 +62,10 @@ class ICache(Elaboratable):
         self.s2_kill    = Signal()
         self.s2_miss    = Signal()
         self.s2_rdata   = Signal(32)
+        if enable_write:
+            self.s2_wdata = Signal(32)
+            self.s2_sel   = Signal(4)
+            self.s2_we    = Signal()
 
         self.bus_addr  = Record(self.pc_layout)
         self.bus_valid = Signal()
@@ -77,6 +85,8 @@ class ICache(Elaboratable):
             ('valid',     1),
             ('sel_lru',   1)
         ]
+        if self.enable_write:
+            way_layout.append(('sel_we',   1))
 
         ways     = Array(Record(way_layout, name='way_idx{}'.format(_way)) for _way in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)
@@ -88,6 +98,9 @@ class ICache(Elaboratable):
 
         m.d.comb += self.s2_miss.eq(way_hit.n)
         m.d.comb += miss.eq(self.s2_miss & self.s2_valid)
+        if self.enable_write:
+            # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
+            m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we)
 
         # set the LRU
         if self.nways == 1:
@@ -165,6 +178,7 @@ class ICache(Elaboratable):
                     with m.If(self.s2_kill):
                         m.next = 'KILLED'
                     with m.Elif(miss):
+                        m.d.comb += read_addr.eq(self.s2_address.line)
                         m.next = 'REFILL'
                 with m.State('REFILL'):
                     m.d.comb += read_addr.eq(self.s2_address.line)
@@ -191,14 +205,43 @@ class ICache(Elaboratable):
                 way.tag.eq(tag_rp.data),
                 way.valid.eq(valid.bit_select(self.s2_address.line, 1))
             ]
-            m.d.comb += [
-                data_wp.addr.eq(self.bus_addr.line),
-                data_wp.data.eq(Repl(self.bus_data, self.nwords)),
-                data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
-            ]
+            if self.enable_write:
+                update_addr = Signal(len(data_wp.addr))
+                update_data = Signal(len(data_wp.data))
+                update_we   = Signal(len(data_wp.en))
+                aux_wdata   = Signal(32)
+
+                with m.If(self.bus_valid):
+                    m.d.comb += [
+                        update_addr.eq(self.bus_addr.line),
+                        update_data.eq(Repl(self.bus_data, self.nwords)),
+                        update_we.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
+                    ]
+                with m.Else():
+                    m.d.comb += [
+                        update_addr.eq(self.s2_address.line),
+                        update_data.eq(Repl(aux_wdata, self.nwords)),
+                        update_we.bit_select(self.s2_address.offset, 1).eq(way.sel_we & ~self.s2_miss)
+                    ]
+                m.d.comb += [
+                    # Aux data: no tengo granularidad de byte en el puerto de escritura. Así que para el
+                    # caso en el cual el CPU tiene que escribir, hay que construir el dato (wrord) a reemplazar
+                    aux_wdata.eq(Cat(
+                        Mux(self.s2_sel[0], self.s2_wdata.word_select(0, 8), self.s2_rdata.word_select(0, 8)),
+                        Mux(self.s2_sel[1], self.s2_wdata.word_select(1, 8), self.s2_rdata.word_select(1, 8)),
+                        Mux(self.s2_sel[2], self.s2_wdata.word_select(2, 8), self.s2_rdata.word_select(2, 8)),
+                        Mux(self.s2_sel[3], self.s2_wdata.word_select(3, 8), self.s2_rdata.word_select(3, 8))
+                    )),
+                    #
+                    data_wp.addr.eq(update_addr),
+                    data_wp.data.eq(update_data),
+                    data_wp.en.eq(update_we),
+                ]
+            else:
+                m.d.comb += [
+                    data_wp.addr.eq(self.bus_addr.line),
+                    data_wp.data.eq(Repl(self.bus_data, self.nwords)),
+                    data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
+                ]
 
         return m
-
-
-class DCache(Elaboratable):
-    pass

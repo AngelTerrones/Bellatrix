@@ -367,18 +367,16 @@ class Bellatrix(Elaboratable):
             data_sel.x_offset.eq(x_ls_addr[:2]),
             data_sel.x_store_data.eq(x.endpoint_a.st_data),
         ]
-        x_valid = x.valid
-        if self.trigger_enable:
-            x_valid = x.valid & ~trigger.trap
         cpu.d.comb += [
             lsu.x_addr.eq(x_ls_addr),
             lsu.x_data_w.eq(data_sel.x_data_w),
             lsu.x_store.eq(x.endpoint_a.store),
             lsu.x_load.eq(x.endpoint_a.load),
             lsu.x_byte_sel.eq(data_sel.x_byte_sel),
-            lsu.x_valid.eq(x_valid & ~data_sel.x_misaligned & ~x.kill),
-            lsu.x_stall.eq(x.stall)
+            lsu.x_enable.eq(~data_sel.x_misaligned & ~x.kill)
         ]
+        if self.trigger_enable:
+            cpu.d.comb += lsu.x_enable.eq(~trigger.trap & ~data_sel.x_misaligned & ~x.kill)
 
         # ebreak logic
         x_ebreak = x.endpoint_a.ebreak
@@ -387,7 +385,14 @@ class Bellatrix(Elaboratable):
 
         # stall/kill sources
         if self.dcache_enable:
-            pass
+            cpu.d.comb += [
+                lsu.x_fence.eq(x.endpoint_a.fence),
+                lsu.x_fence_i.eq(x.endpoint_a.fence_i)  # x.valid
+            ]
+            # the first stall is for the first cycle of the new store
+            # the second stall is for the data stored in the write buffer: we have to wait
+            x.add_stall_source((x.endpoint_a.fence_i | x.endpoint_a.fence) & m.endpoint_a.store)  # x.xalid/m.valid
+            x.add_stall_source(lsu.x_busy)
         if self.enable_rv32m:
             x.add_stall_source(x.endpoint_a.multiplier & ~multiplier.ready)
         x.add_kill_source(m_kill_jb)
@@ -432,10 +437,14 @@ class Bellatrix(Elaboratable):
             data_sel.m_funct3.eq(m.endpoint_a.funct3),
             data_sel.m_offset.eq(m.endpoint_a.ls_addr[:2])
         ]
-        cpu.d.comb += lsu.m_valid.eq(m.valid)
+        cpu.d.comb += lsu.m_stall.eq(m.stall)
 
         if self.dcache_enable:
-            pass
+            cpu.d.comb += [
+                lsu.m_addr.eq(m.endpoint_a.ls_addr),
+                lsu.m_load.eq(m.endpoint_a.load),
+                lsu.m_store.eq(m.endpoint_a.store)
+            ]
 
         # csr
         csr_src0 = Signal(32)
@@ -481,7 +490,7 @@ class Bellatrix(Elaboratable):
             exception.m_fetch_badaddr.eq(m.endpoint_a.pc),
             exception.m_pc_misalign.eq(m.endpoint_a.jb_target),
             exception.m_ls_misalign.eq(m.endpoint_a.ls_addr),
-            exception.m_load_store_badaddr.eq(lsu.m_badaddr),
+            exception.m_load_store_badaddr.eq(lsu.m_badaddr),  # TODO use m.endpoint_a.ls_addr
             exception.m_store.eq(m.endpoint_a.store),
             exception.m_valid.eq(m.valid)
         ]
@@ -586,6 +595,7 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.store.eq(0),
                 d.endpoint_b.csr.eq(0),
                 d.endpoint_b.fence_i.eq(0),
+                d.endpoint_b.fence.eq(0),
                 d.endpoint_b.multiplier.eq(0),
                 d.endpoint_b.divider.eq(0),
                 d.endpoint_b.csr_we.eq(0),
@@ -646,6 +656,10 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.needed_in_m.eq(0),
                 d.endpoint_b.needed_in_w.eq(0),
                 d.endpoint_b.gpr_we.eq(0),
+                d.endpoint_b.load.eq(0),
+                d.endpoint_b.store.eq(0),
+                d.endpoint_b.fence_i.eq(0),
+                d.endpoint_b.fence.eq(0),
             ]
 
         # X -> M
@@ -709,6 +723,8 @@ class Bellatrix(Elaboratable):
             cpu.d.sync += [
                 x.endpoint_b.needed_in_w.eq(0),
                 x.endpoint_b.gpr_we.eq(0),
+                x.endpoint_b.load.eq(0),
+                x.endpoint_b.store.eq(0),
             ]
 
         # M -> W

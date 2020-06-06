@@ -6,7 +6,7 @@ from nmigen.utils import log2_int
 from nmigen.build import Platform
 from nmigen_soc.wishbone.bus import CycleType
 from nmigen_soc.wishbone.bus import Interface
-from bellatrix.gateware.cache import ICache
+from bellatrix.gateware.cache import Cache
 from bellatrix.gateware.wishbone import Arbiter
 
 
@@ -73,7 +73,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         m = Module()
 
         arbiter = m.submodules.arbiter = Arbiter(addr_width=32, data_width=32, granularity=32, features=['err', 'cti', 'bte'])
-        icache  = m.submodules.icache  = ICache(**self.cache_kwargs)
+        icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
 
         cache_port = arbiter.add_port(priority=0)
         bare_port  = arbiter.add_port(priority=1)
