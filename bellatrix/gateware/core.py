@@ -230,8 +230,6 @@ class Bellatrix(Elaboratable):
         if self.predictor_enable:
             with cpu.If(predictor.f_prediction & f.valid):
                 cpu.d.comb += fetch.f_pc.eq(predictor.f_prediction_pc)
-            with cpu.Else():
-                cpu.d.comb += fetch.f_pc.eq(f.endpoint_a.pc)
 
         if self.icache_enable:
             flush_icache = x.endpoint_a.fence_i
