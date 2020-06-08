@@ -530,7 +530,7 @@ class Bellatrix(Elaboratable):
         # Optional unit: branch predictor
         if self.predictor_enable:
             cpu.d.comb += [
-                predictor.f_pc.eq(f.endpoint_a.pc),
+                predictor.f_pc.eq(fetch.f_pc),
                 predictor.f_stall.eq(f.stall),
                 predictor.f2_pc.eq(fetch.f2_pc),
                 predictor.m_prediction_state.eq(m.endpoint_a.prediction_state),
