@@ -129,12 +129,14 @@ class TriggerModule(Elaboratable):
                     mcontrol = Record(mcontrol_layout)
                     m.d.comb += mcontrol.eq(trigger)  # casting, lol
 
+                    bus_match = ~(trigger_data ^ self.x_bus_addr).any()
+                    pc_match  = ~(trigger_data ^ self.x_pc).any()
                     with m.If(mcontrol.execute):
-                        m.d.comb += match.eq(self.x_valid & (trigger_data == self.x_pc))
+                        m.d.comb += match.eq(self.x_valid & pc_match)
                     with m.Elif(mcontrol.store):
-                        m.d.comb += match.eq(self.x_valid & self.x_store & (trigger_data == self.x_bus_addr))
+                        m.d.comb += match.eq(self.x_valid & self.x_store & bus_match)
                     with m.Elif(mcontrol.load):
-                        m.d.comb += match.eq(self.x_valid & self.x_load & (trigger_data == self.x_bus_addr))
+                        m.d.comb += match.eq(self.x_valid & self.x_load & bus_match)
 
                     if self.enable_user_mode:
                         # check the current priv mode, and check the priv enable mode
