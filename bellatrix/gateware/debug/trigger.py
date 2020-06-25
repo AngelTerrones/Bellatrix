@@ -3,7 +3,6 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.gateware.csr import AutoCSR
 from bellatrix.gateware.csr import CSRFile
 from bellatrix.gateware.isa import CSRIndex
 from bellatrix.gateware.isa import PrivMode
