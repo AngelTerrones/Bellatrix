@@ -322,11 +322,6 @@ class CachedLSU(LSUInterface, Elaboratable):
                 self.m_busy.eq(dcache.s2_miss),
                 self.m_load_data.eq(dcache.s2_rdata)
             ]
-        with m.Elif(self.m_load_error | self.m_store_error):
-            m.d.comb += [
-                self.m_busy.eq(0),
-                self.m_load_data.eq(0)
-            ]
         with m.Else():
             m.d.comb += [
                 self.m_busy.eq(bare_port.cyc),

@@ -37,18 +37,19 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
                         self.iport.cyc.eq(1),
                         self.iport.stb.eq(1),
 
-                        self.f_bus_error.eq(0)
+                        self.f_bus_error.eq(0),
+                        self.f_busy.eq(1)
                     ]
                     m.next = 'BUSY'
             with m.State('BUSY'):
-                m.d.comb += self.f_busy.eq(1)
                 with m.If(self.iport.ack | self.iport.err | self.f_kill):
                     m.d.sync += [
                         self.iport.cyc.eq(0),
                         self.iport.stb.eq(0),
                         self.f_instruction.eq(self.iport.dat_r),
 
-                        self.f_bus_error.eq(self.iport.err)
+                        self.f_bus_error.eq(self.iport.err),
+                        self.f_busy.eq(0)
                     ]
                     m.next = 'IDLE'
                 with m.If(self.f_kill):
@@ -144,10 +145,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
 
         # in case of error, make the instruction a NOP
         with m.If(self.f_kill | self.f_bus_error):
-            m.d.comb += [
-                self.f_instruction.eq(0x00000013),  # NOP
-                self.f_busy.eq(0)
-            ]
+            m.d.comb += self.f_instruction.eq(0x00000013),  # NOP
         with m.Elif(f2_use_cache):
             m.d.comb += [
                 self.f_instruction.eq(icache.s2_rdata),

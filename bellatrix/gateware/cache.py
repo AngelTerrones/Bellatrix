@@ -77,7 +77,11 @@ class Cache(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        miss = Signal()
+        miss          = Signal()
+        miss_data     = Signal(32)
+        use_miss_data = Signal()
+        read_en       = Signal()
+        bus_addr      = Record(self.pc_layout)
 
         way_layout = [
             ('data',      32 * self.nwords),
@@ -96,7 +100,6 @@ class Cache(Elaboratable):
         for idx, way in enumerate(ways):
             m.d.comb += way_hit.i[idx].eq((way.tag == self.s2_address.tag) & way.valid)
 
-        m.d.comb += self.s2_miss.eq(way_hit.n)
         m.d.comb += miss.eq(self.s2_miss & self.s2_valid)
         if self.enable_write:
             # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
@@ -116,33 +119,49 @@ class Cache(Elaboratable):
                 m.d.sync += _lru.eq(~_lru)
 
         # read data from the cache
+        with m.FSM(name='miss_data'):
+            with m.State('IDLE'):
+                with m.If(self.bus_valid & self.bus_ack):
+                    m.d.sync += miss_data.eq(self.bus_data),
+                    m.next = 'LATCHED'
+            with m.State('LATCHED'):
+                with m.If(~self.bus_valid):
+                    m.d.comb += use_miss_data.eq(1)
+                    m.next = 'IDLE'
+
         m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data.word_select(self.s2_address.offset, 32))
+        with m.If(use_miss_data):
+            m.d.comb += self.s2_rdata.eq(miss_data)
 
         tag_addr = Signal.like(self.s2_address.line)
         tag_data = Signal.like(self.s2_address.tag)
-        with m.FSM():
+        with m.FSM(name='refill'):
             with m.State('READ'):
+                m.d.comb += self.s2_miss.eq(way_hit.n)
                 with m.If(miss & ~self.s2_kill):
                     m.d.sync += [
                         tag_addr.eq(self.s2_address.line),
                         tag_data.eq(self.s2_address.tag),
                         self.bus_addr.eq(self.s2_address),
+                        bus_addr.eq(self.s2_address),
                         self.bus_valid.eq(1),
                         fill_cnt.eq(self.s2_address.offset - 1)
                     ]
                     m.next = 'REFILL'
             with m.State('REFILL'):
+                m.d.comb += self.s2_miss.eq(1)
                 m.d.comb += self.bus_last.eq(fill_cnt == self.bus_addr.offset)
 
                 with m.If(self.bus_ack):
                     m.d.sync += self.bus_addr.offset.eq(self.bus_addr.offset + 1)
                 with m.If((self.bus_ack & self.bus_last) | self.bus_err | self.s1_flush | self.s2_kill):
                     m.d.sync += self.bus_valid.eq(0)
-                with m.If(~self.bus_valid):
-                    m.d.sync += self.bus_valid.eq(0)
-                    m.next = 'READ'
+                    m.next = 'NOP'
+            with m.State('NOP'):
+                m.d.comb += self.s2_miss.eq(0)
+                m.next = 'READ'
 
-        # # mark the selected way for replacement (refill)
+        # mark the selected way for replacement (refill)
         m.d.comb += ways[lru.bit_select(self.s2_address.line, 1)].sel_lru.eq(self.bus_valid)
 
         # generate for N ways
@@ -151,12 +170,12 @@ class Cache(Elaboratable):
             valid = Signal(self.nlines)  # Valid bits
 
             tag_m    = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
-            tag_rp   = tag_m.read_port()
+            tag_rp   = tag_m.read_port(transparent=False)
             tag_wp   = tag_m.write_port()
             m.submodules += tag_rp, tag_wp
 
             data_m  = Memory(width=len(way.data), depth=self.nlines)  # data memory
-            data_rp = data_m.read_port()
+            data_rp = data_m.read_port(transparent=False)
             data_wp = data_m.write_port(granularity=32)  # implica que solo puedo escribir palabras de 32 bits.
             m.submodules += data_rp, data_wp
 
@@ -164,42 +183,36 @@ class Cache(Elaboratable):
             with m.If(self.s1_flush):  # flush
                 m.d.sync += valid.eq(0)
             with m.Elif(way.sel_lru):  # refill incomplete
-                m.d.sync += valid.bit_select(self.bus_addr.line, 1).eq(self.bus_last & self.bus_ack)
+                m.d.sync += valid.bit_select(bus_addr.line, 1).eq(self.bus_last & self.bus_ack)
 
-            read_addr = Signal.like(self.s1_address.line)
-
+            m.d.comb += read_en.eq(1)
             with m.FSM():
                 with m.State('IDLE'):
                     with m.If(self.s2_stall):
-                        m.d.comb += read_addr.eq(self.s2_address.line)
-                    with m.Else():
-                        m.d.comb += read_addr.eq(self.s1_address.line)
+                        m.d.comb += read_en.eq(0)
 
                     with m.If(self.s2_kill):
                         m.next = 'KILLED'
                     with m.Elif(miss):
-                        m.d.comb += read_addr.eq(self.s2_address.line)
                         m.next = 'REFILL'
                 with m.State('REFILL'):
-                    m.d.comb += read_addr.eq(self.s2_address.line)
-
                     with m.If(self.s2_kill):
                         m.next = 'IDLE'
                     with m.Elif(~self.bus_valid):
-                        m.d.comb += read_addr.eq(self.s1_address.line)
                         m.next = 'IDLE'
                 with m.State('KILLED'):
-                    m.d.comb += read_addr.eq(self.s1_address.line)
                     m.next = 'IDLE'
 
             m.d.comb += [
-                tag_rp.addr.eq(read_addr),
+                tag_rp.addr.eq(self.s1_address.line),
+                tag_rp.en.eq(read_en),
 
                 tag_wp.addr.eq(tag_addr),
                 tag_wp.data.eq(tag_data),
                 tag_wp.en.eq(way.sel_lru & self.bus_ack & self.bus_last),
 
-                data_rp.addr.eq(read_addr),
+                data_rp.addr.eq(self.s1_address.line),
+                data_rp.en.eq(read_en),
 
                 way.data.eq(data_rp.data),
                 way.tag.eq(tag_rp.data),
@@ -213,7 +226,7 @@ class Cache(Elaboratable):
 
                 with m.If(self.bus_valid):
                     m.d.comb += [
-                        update_addr.eq(self.bus_addr.line),
+                        update_addr.eq(bus_addr.line),
                         update_data.eq(Repl(self.bus_data, self.nwords)),
                         update_we.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                     ]
@@ -239,7 +252,7 @@ class Cache(Elaboratable):
                 ]
             else:
                 m.d.comb += [
-                    data_wp.addr.eq(self.bus_addr.line),
+                    data_wp.addr.eq(bus_addr.line),
                     data_wp.data.eq(Repl(self.bus_data, self.nwords)),
                     data_wp.en.bit_select(self.bus_addr.offset, 1).eq(way.sel_lru & self.bus_ack),
                 ]
