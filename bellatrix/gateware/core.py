@@ -651,13 +651,25 @@ class Bellatrix(Elaboratable):
             ]
         with cpu.Elif(~x.stall):
             cpu.d.sync += [
-                d.endpoint_b.needed_in_m.eq(0),
-                d.endpoint_b.needed_in_w.eq(0),
                 d.endpoint_b.gpr_we.eq(0),
+                d.endpoint_b.jump.eq(0),
+                d.endpoint_b.branch.eq(0),
                 d.endpoint_b.load.eq(0),
                 d.endpoint_b.store.eq(0),
+                d.endpoint_b.csr.eq(0),
                 d.endpoint_b.fence_i.eq(0),
                 d.endpoint_b.fence.eq(0),
+                d.endpoint_b.multiplier.eq(0),
+                d.endpoint_b.divider.eq(0),
+                d.endpoint_b.csr_we.eq(0),
+                d.endpoint_b.fetch_error.eq(0),
+                d.endpoint_b.ecall.eq(0),
+                d.endpoint_b.ebreak.eq(0),
+                d.endpoint_b.mret.eq(0),
+                d.endpoint_b.illegal.eq(0),
+                d.endpoint_b.prediction.eq(0),
+                d.endpoint_b.needed_in_m.eq(0),
+                d.endpoint_b.needed_in_w.eq(0)
             ]
 
         # X -> M
@@ -719,10 +731,24 @@ class Bellatrix(Elaboratable):
             ]
         with cpu.Elif(~m.stall):
             cpu.d.sync += [
-                x.endpoint_b.needed_in_w.eq(0),
                 x.endpoint_b.gpr_we.eq(0),
+                x.endpoint_b.needed_in_w.eq(0),
+                x.endpoint_b.compare.eq(0),
+                x.endpoint_b.shifter.eq(0),
+                x.endpoint_b.jump.eq(0),
+                x.endpoint_b.branch.eq(0),
                 x.endpoint_b.load.eq(0),
                 x.endpoint_b.store.eq(0),
+                x.endpoint_b.csr.eq(0),
+                x.endpoint_b.divider.eq(0),
+                x.endpoint_b.fetch_error.eq(0),
+                x.endpoint_b.ecall.eq(0),
+                x.endpoint_b.ebreak.eq(0),
+                x.endpoint_b.mret.eq(0),
+                x.endpoint_b.illegal.eq(0),
+                x.endpoint_b.ls_misalign.eq(0),
+                x.endpoint_b.prediction.eq(0),
+                x.endpoint_b.needed_in_w.eq(0)
             ]
 
         # M -> W
