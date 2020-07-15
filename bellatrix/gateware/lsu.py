@@ -174,7 +174,6 @@ class CachedLSU(LSUInterface, Elaboratable):
 
         wbuffer_port = arbiter.add_port(priority=0)
         cache_port   = arbiter.add_port(priority=1)
-        bare_port    = arbiter.add_port(priority=2)
 
         x_use_cache = Signal()
         m_use_cache = Signal()
@@ -197,7 +196,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         m.d.comb += [
             # input
             wbuffer.w_data.eq(wbuffer_din),
-            wbuffer.w_en.eq(x_use_cache & self.x_store & ~self.m_stall & self.x_enable),
+            wbuffer.w_en.eq(self.x_store & ~self.m_stall & self.x_enable),  # x_use_cache &
             wbuffer_din.addr.eq(self.x_addr),
             wbuffer_din.data.eq(self.x_data_w),
             wbuffer_din.sel.eq(self.x_byte_sel),
@@ -274,58 +273,16 @@ class CachedLSU(LSUInterface, Elaboratable):
         ]
 
         # --------------------------------------------------
-        # bare port
-        rdata = Signal.like(bare_port.dat_r)
-        op    = Signal()
-
-        m.d.comb += op.eq(self.x_load | self.x_store)
-
-        # transaction logic
-        with m.FSM():
-            with m.State('IDLE'):
-                with m.If(op & ~self.m_stall & ~x_use_cache):
-                    m.d.sync += [
-                        bare_port.adr.eq(self.x_addr),
-                        bare_port.dat_w.eq(self.x_data_w),
-                        bare_port.sel.eq(self.x_byte_sel),
-                        bare_port.we.eq(self.x_store),
-                        bare_port.cyc.eq(1),
-                        bare_port.stb.eq(1)
-                    ]
-                    m.next = 'BUSY'
-            with m.State('BUSY'):
-                with m.If(bare_port.ack | bare_port.err):
-                    m.d.sync += [
-                        rdata.eq(bare_port.dat_r),
-                        bare_port.we.eq(0),
-                        bare_port.cyc.eq(0),
-                        bare_port.stb.eq(0)
-                    ]
-                    m.next = 'IDLE'
-
-        m.d.comb += [
-            bare_port.cti.eq(CycleType.CLASSIC),
-            bare_port.bte.eq(0)
-        ]
-
-        # --------------------------------------------------
         # extra logic
         with m.If(self.x_fence_i | self.x_fence):
             m.d.comb += self.x_busy.eq(wbuffer.r_rdy)
         with m.Elif(x_use_cache):
             m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)
-        with m.Else():
-            m.d.comb += self.x_busy.eq(bare_port.cyc)
 
         with m.If(m_use_cache & self.m_load):
             m.d.comb += [
                 self.m_busy.eq(dcache.s2_miss),
                 self.m_load_data.eq(dcache.s2_rdata)
-            ]
-        with m.Else():
-            m.d.comb += [
-                self.m_busy.eq(bare_port.cyc),
-                self.m_load_data.eq(rdata)
             ]
 
         # --------------------------------------------------
