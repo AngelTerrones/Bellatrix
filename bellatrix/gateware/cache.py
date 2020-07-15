@@ -100,7 +100,7 @@ class Cache(Elaboratable):
         # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
         for idx, way in enumerate(ways):
-            m.d.comb += way_hit.i[idx].eq((way.tag == self.s2_address.tag) & way.valid)
+            m.d.comb += way_hit.i[idx].eq(~(way.tag ^ self.s2_address.tag).any() & way.valid)
 
         m.d.comb += miss.eq(self.s2_miss & self.s2_valid)
         if self.enable_write:
