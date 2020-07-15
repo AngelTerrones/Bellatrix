@@ -276,7 +276,8 @@ class CachedLSU(LSUInterface, Elaboratable):
         # extra logic
         with m.If(self.x_fence_i | self.x_fence):
             m.d.comb += self.x_busy.eq(wbuffer.r_rdy)
-        with m.Elif(x_use_cache):
+        with m.Else():
+            # No usar x_use_cache: siempre se accede si es escritura
             m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)
 
         with m.If(m_use_cache & self.m_load):
@@ -287,6 +288,7 @@ class CachedLSU(LSUInterface, Elaboratable):
 
         # --------------------------------------------------
         # exceptions
+        # TODO: revisar/probar los errores de bus.
         with m.If(self.dport.cyc & self.dport.err):
             m.d.sync += [
                 self.m_load_error.eq(~self.dport.we),
