@@ -204,14 +204,18 @@ class Bellatrix(Elaboratable):
                 cpu.d.comb += a_pc.eq(m.endpoint_a.pc + 4)  # branch not taken
             with cpu.Elif(~m.endpoint_a.prediction & m_take_jb):
                 cpu.d.comb += a_pc.eq(m.endpoint_a.jb_target)  # branck taken
-            with cpu.Elif(predictor.f_prediction):
-                cpu.d.comb += a_pc.eq(predictor.f_prediction_pc + 4)  # prediction
         else:
             with cpu.Elif(m_take_jb):
                 cpu.d.comb += a_pc.eq(m.endpoint_a.jb_target)  # jmp/branch
         # ****************************************
         with cpu.Elif(x.endpoint_a.fence_i):
             cpu.d.comb += a_pc.eq(x.endpoint_a.pc + 4)  # fence_i.
+        # ****************************************
+        # m > x > f regarding the new pc.
+        if self.predictor_enable:
+            with cpu.Elif(predictor.f_prediction):
+                cpu.d.comb += a_pc.eq(predictor.f_prediction_pc + 4)  # prediction
+        # ****************************************
         with cpu.Else():
             cpu.d.comb += a_pc.eq(f.endpoint_a.pc + 4)
 
