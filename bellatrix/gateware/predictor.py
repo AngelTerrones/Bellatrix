@@ -74,7 +74,7 @@ class BranchPredictor(Elaboratable):
             #
             f_pc.eq(self.f_pc),
             f2_pc.eq(self.f2_pc),
-            hit.eq(btb_r.valid & (btb_r.tag == f2_pc.tag))
+            hit.eq(btb_r.valid & ~(btb_r.tag ^ f2_pc.tag).bool())
         ]
         m.d.comb += [
             self.f_prediction.eq(hit & bht_rp.data[1]),
