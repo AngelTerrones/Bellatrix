@@ -19,6 +19,7 @@ class FetchUnitInterface:
         self.f_instruction = Signal(32, reset=0x00000013)  # output
         self.f_bus_error   = Signal()    # output
         self.d_stall       = Signal()    # input
+        self.f_prediction  = Signal()
 
 
 class BasicFetchUnit(FetchUnitInterface, Elaboratable):
@@ -28,8 +29,10 @@ class BasicFetchUnit(FetchUnitInterface, Elaboratable):
         with m.FSM():
             with m.State('IDLE'):
                 with m.If(self.f_kill | ~self.d_stall):
+                    # If D is not stalled, return a nop the next cycle
+                    # because I don't have a valid instruction
                     m.d.sync += self.f_instruction.eq(0x00000013)
-                with m.If(~(self.d_stall | self.f_kill)):
+                with m.If(~(self.d_stall | self.f_kill | self.f_prediction)):  # !d_stall & !f_kill
                     m.d.sync += [
                         self.f2_pc.eq(self.f_pc),
                         self.iport.adr.eq(self.f_pc),
@@ -72,33 +75,30 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
+        f2_valid = Signal()
+
         icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
 
-        f1_use_cache = Signal()
-        f2_use_cache = Signal()
-
-        bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
-        m.d.comb += f1_use_cache.eq((self.f_pc[bits_range:] == (self.start_addr >> bits_range)))
-
-        with m.If(self.f_kill | ~(self.d_stall | self.f_busy)):
+        # pipeline
+        with m.If(self.f_kill | ~(self.d_stall | self.f_busy)):  # !d_stall & !f_busy
             m.d.sync += self.f2_pc.eq(self.f_pc)
 
         with m.If(self.f_kill):
-            m.d.sync += f2_use_cache.eq(0)
-        with m.Elif(~(self.d_stall | self.f_busy)):
-            m.d.sync += f2_use_cache.eq(f1_use_cache)
+            m.d.sync += f2_valid.eq(0)
+        with m.Elif(~(self.d_stall | self.f_busy)):  # !d_stall & !f_busy
+            m.d.sync += f2_valid.eq(~self.f_prediction)
 
         # connect IO: cache
         m.d.comb += [
             icache.s1_address.eq(self.f_pc),
             icache.s1_flush.eq(self.flush),
             icache.s2_address.eq(self.f2_pc),
-            icache.s2_valid.eq(f2_use_cache),
+            icache.s2_valid.eq(f2_valid),
             icache.s2_stall.eq(self.d_stall),
             icache.s2_kill.eq(self.f_kill)
         ]
 
-        # connect cache to arbiter
+        # connect cache to instruction port
         m.d.comb += [
             self.iport.adr.eq(icache.bus_addr),
             self.iport.dat_w.eq(0),
@@ -116,7 +116,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         # in case of error, make the instruction a NOP
         with m.If(self.f_kill | self.f_bus_error):
             m.d.comb += self.f_instruction.eq(0x00000013),  # NOP
-        with m.Elif(f2_use_cache):
+        with m.Elif(f2_valid):
             m.d.comb += [
                 self.f_instruction.eq(icache.s2_rdata),
                 self.f_busy.eq(icache.s2_miss)
@@ -126,6 +126,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         with m.If(self.iport.cyc & self.iport.err):
             m.d.sync += self.f_bus_error.eq(1)
         with m.Elif(~self.d_stall):
+            # No stall -> reset error
             m.d.sync += self.f_bus_error.eq(0)
 
         return m

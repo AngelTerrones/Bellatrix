@@ -81,8 +81,6 @@ class Cache(Elaboratable):
 
         miss          = Signal()
         miss_data     = Signal(32)
-        use_miss_data = Signal()
-        read_en       = Signal()
         bus_addr      = Record(self.pc_layout)
 
         way_layout = [
@@ -123,18 +121,14 @@ class Cache(Elaboratable):
         # read data from the cache
         with m.FSM(name='miss_data'):
             with m.State('IDLE'):
+                m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data)
                 with m.If(self.bus_valid & self.bus_ack):
                     m.d.sync += miss_data.eq(self.bus_data),
                     m.next = 'LATCHED'
             with m.State('LATCHED'):
-                m.d.sync += use_miss_data.eq(1)
+                m.d.comb += self.s2_rdata.eq(miss_data)
                 with m.If(~(self.bus_valid | self.s2_stall)):
-                    m.d.sync += use_miss_data.eq(0)
                     m.next = 'IDLE'
-
-        m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data)
-        with m.If(use_miss_data):
-            m.d.comb += self.s2_rdata.eq(miss_data)
 
         tag_addr = Signal.like(self.s2_address.line)
         tag_data = Signal.like(self.s2_address.tag)
@@ -165,7 +159,10 @@ class Cache(Elaboratable):
                 m.next = 'READ'
 
         # mark the selected way for replacement (refill)
-        m.d.comb += ways[lru.bit_select(self.s2_address.line, 1)].sel_lru.eq(self.bus_valid)
+        if self.nways == 1:
+            m.d.comb += ways[0].sel_lru.eq(self.bus_valid)
+        else:
+            m.d.comb += ways[lru.bit_select(self.s2_address.line, 1)].sel_lru.eq(self.bus_valid)
 
         # generate for N ways
         for way in ways:
@@ -188,42 +185,23 @@ class Cache(Elaboratable):
             with m.Elif(way.sel_lru):  # refill incomplete
                 m.d.sync += valid.bit_select(bus_addr.line, 1).eq(self.bus_last & self.bus_ack)
 
-            m.d.comb += read_en.eq(1)
-            with m.FSM():
-                with m.State('IDLE'):
-                    with m.If(self.s2_stall):
-                        m.d.comb += read_en.eq(0)
-
-                    with m.If(self.s2_kill):
-                        m.next = 'KILLED'
-                    with m.Elif(miss):
-                        m.next = 'REFILL'
-                with m.State('REFILL'):
-                    with m.If(self.s2_kill):
-                        m.next = 'IDLE'
-                    with m.Elif(~self.bus_valid):
-                        m.next = 'IDLE'
-                with m.State('KILLED'):
-                    m.next = 'IDLE'
             # casting
             rdata_ptr = Record(self.mem_ptr_layout)
             wdata_ptr = Record(self.mem_ptr_layout)
 
             m.d.comb += [
                 rdata_ptr.eq(self.s1_address),
-                wdata_ptr.eq(self.bus_addr)
-            ]
+                wdata_ptr.eq(self.bus_addr),
 
-            m.d.comb += [
                 tag_rp.addr.eq(self.s1_address.line),
-                tag_rp.en.eq(read_en),
+                tag_rp.en.eq(~self.s2_stall),
 
                 tag_wp.addr.eq(tag_addr),
                 tag_wp.data.eq(tag_data),
                 tag_wp.en.eq(way.sel_lru & self.bus_ack & self.bus_last),
 
                 data_rp.addr.eq(rdata_ptr.addr),
-                data_rp.en.eq(read_en),
+                data_rp.en.eq(~self.s2_stall),
 
                 way.data.eq(data_rp.data),
                 way.tag.eq(tag_rp.data),

@@ -193,6 +193,16 @@ class Bellatrix(Elaboratable):
         a_pc = Signal(32)
         # reset value
         a.endpoint_b.pc.reset = self.reset_address
+
+        if self.predictor_enable:
+            bad_predict_jump  = Signal()
+            bad_predict_nojump = Signal()
+
+            cpu.d.comb += [
+                bad_predict_jump.eq(m.endpoint_a.prediction & ~m_take_jb),
+                bad_predict_nojump.eq(~m.endpoint_a.prediction & m_take_jb)
+            ]
+
         # select the next pc
         with cpu.If(exception.m_exception):
             cpu.d.comb += a_pc.eq(exception.mtvec.read)  # exception
@@ -200,9 +210,9 @@ class Bellatrix(Elaboratable):
             cpu.d.comb += a_pc.eq(exception.mepc.read)  # mret
         # ****************************************
         if self.predictor_enable:
-            with cpu.Elif(m.endpoint_a.prediction & ~m_take_jb):
+            with cpu.Elif(bad_predict_jump):
                 cpu.d.comb += a_pc.eq(m.endpoint_a.pc + 4)  # branch not taken
-            with cpu.Elif(~m.endpoint_a.prediction & m_take_jb):
+            with cpu.Elif(bad_predict_nojump):
                 cpu.d.comb += a_pc.eq(m.endpoint_a.jb_target)  # branck taken
         else:
             with cpu.Elif(m_take_jb):
@@ -214,10 +224,13 @@ class Bellatrix(Elaboratable):
         # m > x > f regarding the new pc.
         if self.predictor_enable:
             with cpu.Elif(predictor.f_prediction):
-                cpu.d.comb += a_pc.eq(predictor.f_prediction_pc + 4)  # prediction
+                cpu.d.comb += a_pc.eq(predictor.f_prediction_pc)  # prediction
         # ****************************************
         with cpu.Else():
             cpu.d.comb += a_pc.eq(f.endpoint_a.pc + 4)
+
+        if self.predictor_enable:
+            a.add_kill_source(predictor.f_prediction & ~f.stall)
 
         a.add_kill_source(m_kill_jb)
         a.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
@@ -229,11 +242,11 @@ class Bellatrix(Elaboratable):
         cpu.d.comb += [
             fetch.f_pc.eq(f.endpoint_a.pc),
             fetch.f_kill.eq(f.kill),
-            fetch.d_stall.eq(d.stall)
+            fetch.d_stall.eq(d.stall),
+            fetch.f_prediction.eq(0)
         ]
         if self.predictor_enable:
-            with cpu.If(predictor.f_prediction & f.valid):
-                cpu.d.comb += fetch.f_pc.eq(predictor.f_prediction_pc)
+            cpu.d.comb += fetch.f_prediction.eq(predictor.f_prediction & f.valid)
 
         if self.icache_enable:
             flush_icache = x.endpoint_a.fence_i
