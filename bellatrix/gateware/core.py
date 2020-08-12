@@ -505,7 +505,7 @@ class Bellatrix(Elaboratable):
             exception.m_fetch_badaddr.eq(m.endpoint_a.pc),
             exception.m_pc_misalign.eq(m.endpoint_a.jb_target),
             exception.m_ls_misalign.eq(m.endpoint_a.ls_addr),
-            exception.m_load_store_badaddr.eq(lsu.m_badaddr),  # TODO use m.endpoint_a.ls_addr
+            exception.m_load_store_badaddr.eq(lsu.m_badaddr),
             exception.m_store.eq(m.endpoint_a.store),
             exception.m_valid.eq(m.valid)
         ]
