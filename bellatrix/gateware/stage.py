@@ -10,7 +10,7 @@ from functools import reduce
 from operator import or_
 from typing import List, Tuple, Optional
 
-Layout = List[Tuple[str, int]]
+Layout = List[Tuple[str, int, bool]]
 
 
 class _Endpoint(Record):
@@ -31,10 +31,14 @@ class _Endpoint(Record):
         ]
 
         for item in layout:
-            full_layout.append(item + (direction,))
+            full_layout.append(item[:2] + (direction,))  # use only first 2 values in layout
 
-        # TODO: add resetless attribute to layout
+        # create the signals
         super().__init__(full_layout, name=name)
+
+        # add resetless attribute to signals
+        for name, size, resetless in layout:
+            getattr(self, name).resetless = resetless
 
 
 class Stage(Elaboratable):
