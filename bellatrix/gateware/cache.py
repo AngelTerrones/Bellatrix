@@ -58,12 +58,13 @@ class Cache(Elaboratable):
         self.s1_address = Record(self.pc_layout)
         self.s1_flush   = Signal()
 
-        self.s2_address = Record(self.pc_layout)
-        self.s2_valid   = Signal()
-        self.s2_stall   = Signal()
-        self.s2_kill    = Signal()
-        self.s2_miss    = Signal()
-        self.s2_rdata   = Signal(32)
+        self.s2_address  = Record(self.pc_layout)
+        self.s2_address2 = Record(self.pc_layout)  # to reduce the timing
+        self.s2_valid    = Signal()
+        self.s2_stall    = Signal()
+        self.s2_kill     = Signal()
+        self.s2_miss     = Signal()
+        self.s2_rdata    = Signal(32)
         if enable_write:
             self.s2_wdata = Signal(32)
             self.s2_sel   = Signal(4)
@@ -98,7 +99,7 @@ class Cache(Elaboratable):
         # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
         for idx, way in enumerate(ways):
-            m.d.comb += way_hit.i[idx].eq(~(way.tag ^ self.s2_address.tag).any() & way.valid)
+            m.d.comb += way_hit.i[idx].eq(~(way.tag ^ self.s2_address2.tag).any() & way.valid)
 
         m.d.comb += miss.eq(self.s2_miss & self.s2_valid)
         if self.enable_write:

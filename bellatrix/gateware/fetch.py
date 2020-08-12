@@ -76,12 +76,16 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
         m = Module()
 
         f2_valid = Signal()
+        f2_pc    = Signal(32)  # to reduce the timing
 
         icache  = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
 
         # pipeline
         with m.If(self.f_kill | ~(self.d_stall | self.f_busy)):  # !d_stall & !f_busy
-            m.d.sync += self.f2_pc.eq(self.f_pc)
+            m.d.sync += [
+                self.f2_pc.eq(self.f_pc),
+                f2_pc.eq(self.f_pc)
+            ]
 
         with m.If(self.f_kill):
             m.d.sync += f2_valid.eq(0)
@@ -93,6 +97,7 @@ class CachedFetchUnit(FetchUnitInterface, Elaboratable):
             icache.s1_address.eq(self.f_pc),
             icache.s1_flush.eq(self.flush),
             icache.s2_address.eq(self.f2_pc),
+            icache.s2_address2.eq(f2_pc),
             icache.s2_valid.eq(f2_valid),
             icache.s2_stall.eq(self.d_stall),
             icache.s2_kill.eq(self.f_kill)
