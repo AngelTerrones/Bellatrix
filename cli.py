@@ -46,7 +46,7 @@ def CPU_to_verilog(core_config: dict, vfile: str):
         print(f"Error: {error}. Check if the output path exists.", file=sys.stderr)
 
 
-def generate_verilog(args):
+def generate_cpu_verilog(args):
     # load configuration
     core_config = load_config(args.variant, args.config, args.verbose)
     CPU_to_verilog(core_config, args.filename)
@@ -128,16 +128,16 @@ def main() -> None:
     # Actions
     p_action = parser.add_subparsers(dest='action', help='Available commands')
     # --------------------------------------------------------------------------
-    # Generate verilog
-    p_generate = p_action.add_parser('generate', help='Generate Verilog from the design')
-    p_generate.add_argument('filename', metavar="FILE",
-                            help="Write generated code to FILE")
-    p_generate.add_argument('--variant', choices=cpu_variants, required=True,
-                            help='CPU type')
-    p_generate.add_argument('--config',
-                            help='Configuration file for custom variants')
-    p_generate.add_argument('--verbose', action='store_true',
-                            help='Print the configuration file')
+    # Generate core verilog
+    p_generate_cpu = p_action.add_parser('generate_cpu', help='Generate CPU Verilog from the design')
+    p_generate_cpu.add_argument('filename', metavar="FILE",
+                                help="Write generated verilog to FILE")
+    p_generate_cpu.add_argument('--variant', choices=cpu_variants, required=True,
+                                help='CPU type')
+    p_generate_cpu.add_argument('--config',
+                                help='Configuration file for custom variants')
+    p_generate_cpu.add_argument('--verbose', action='store_true',
+                                help='Print the configuration file')
     # --------------------------------------------------------------------------
     # build verilator testbench
     p_buildtb = p_action.add_parser('buildtb', help='Build the Verilator simulator')
@@ -160,8 +160,8 @@ def main() -> None:
     args = parser.parse_args()
     # --------------------------------------------------------------------------
     # execute
-    if args.action == 'generate':
-        generate_verilog(args)
+    if args.action == 'generate_cpu':
+        generate_cpu_verilog(args)
     elif args.action == 'buildtb':
         build_testbench(args)
     elif args.action == 'compliance':
