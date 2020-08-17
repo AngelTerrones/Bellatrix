@@ -58,9 +58,14 @@ class Bellatrix(Elaboratable):
                  dcache_end: int = 0xffff_ffff,
                  # trigger module
                  trigger_enable: bool = False,
-                 trigger_ntriggers: int = 4
+                 trigger_ntriggers: int = 4,
+                 # eat extra arguments. Do nothing with it
+                 **kwargs
                  ) -> None:
         # ----------------------------------------------------------------------
+        if len(kwargs) != 0:
+            print(f'Warning: Got unused kwargs: {kwargs.keys()}')
+
         self.reset_address     = core_reset_address
         self.enable_rv32m      = isa_enable_rv32m
         self.enable_extra_csr  = isa_enable_extra_csr
