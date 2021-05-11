@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import os
 import glob
 import sys
@@ -80,7 +81,16 @@ def build_testbench(args):
 
         # run make
         os.environ['BCONFIG'] = configfile
-        subprocess.check_call(f'make -C {path} -j$(nproc)', shell=True, stderr=subprocess.STDOUT)
+        try:
+            subprocess.check_call(f'make --no-print-directory -C {path} -j$(nproc)', shell=True, stderr=subprocess.STDOUT)
+            print('--------------------------------------------------')
+            print('Build: DONE')
+            print('--------------------------------------------------')
+        except CalledProcessError as error:
+            print('--------------------------------------------------')
+            print('Build with errors:\n')
+            print(error)
+            print('--------------------------------------------------')
 
 
 def run_compliance(args):
@@ -95,27 +105,38 @@ def run_compliance(args):
 
     variant_msg = []
     for variant in args.variant:
+        print('------------------------------------------------------------')
+        print(f'Running tests for {variant} configuration:\n')
+
         os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{variant}')
         isa_msg = []
         for isa in args.isa:
             try:
-                subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA={isa}',
-                                      shell=True, stderr=subprocess.STDOUT)
+                cmd = f'make --no-print-directory -C {args.rvc} variant RISCV_TARGET=nht RISCV_DEVICE=rv32i RISCV_ISA={isa}'
+                output = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT)
                 isa_msg.append(f'{isa} test ended sucessfully.')
             except CalledProcessError as error:
-                print(f"Error: {error}", file=sys.stderr)
-                isa_msg.append(f'{isa} test with errors.')
+                output = error.stdout
+                isa_msg.append(f'{isa} test ended with errors.')
+
+            result = re.search(f'files \.\.\. \n(.*)\nmake: Leaving', output, re.DOTALL)  # noqa
+            if result:
+                print(f'* {isa}:\n\n{result.group(1)}\n')
+
+            # write log file
+            logfile = os.path.abspath(f'build/{variant}') + f'/{isa}.log'
+            with open(logfile, 'w') as f:
+                f.write(output)
 
         variant_msg.append(isa_msg)
 
-    print('\n------------------------------------------------------------')
-    print('Results:')
-    print('------------------------------------------------------------')
+    print('============================================================')
+    print('Result:\n')
     for variant, msg in zip(args.variant, variant_msg):
         print(f'{variant} configuration:')
         for tmp in msg:
             print(f'\t{tmp}')
-    print('------------------------------------------------------------')
+    print('============================================================')
 
 
 def main() -> None:
@@ -148,12 +169,9 @@ def main() -> None:
     # --------------------------------------------------------------------------
     # run compliance test
     p_compliance = p_action.add_parser('compliance', help='Run the RISC-V compliance test')
-    p_compliance.add_argument('--rvc', required=True,
-                              help='Path to riscv-compliance')
-    p_compliance.add_argument('--variant', choices=cpu_variants, nargs='+', required=True,
-                              help='CPU type')
-    p_compliance.add_argument('--config',
-                              help='Configuration file for custom variants')
+    p_compliance.add_argument('--rvc', required=True, help='Path to riscv-compliance')
+    p_compliance.add_argument('--variant', choices=cpu_variants, nargs='+', required=True, help='CPU type')
+    p_compliance.add_argument('--config', help='Configuration file for custom variants')
     p_compliance.add_argument('--isa', choices=['rv32i', 'rv32im', 'rv32mi', 'rv32ui', 'rv32Zicsr', 'rv32Zifencei'],
                               nargs='+', required=True, help='Available compliance tests',)
     # --------------------------------------------------------------------------
