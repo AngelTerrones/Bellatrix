@@ -74,18 +74,14 @@ int CORETB::SimulateCore(const std::string &progfile, const unsigned long max_ti
 }
 // -----------------------------------------------------------------------------
 uint32_t CORETB::PrintExitMessage(const bool ok, const unsigned long max_time) {
-        uint32_t exit_code;
         if (ok){
                 printf(ANSI_COLOR_GREEN "[CORETB] Simulation done. Time %u\n" ANSI_COLOR_RESET, getTime());
-                exit_code = 0;
         } else if (getTime() < max_time || max_time == 0) {
                 printf(ANSI_COLOR_RED "[CORETB] Simulation error. Exit code: %08X. Time: %u\n" ANSI_COLOR_RESET, m_exitCode, getTime());
-                exit_code = 1;
         } else {
                 printf(ANSI_COLOR_MAGENTA "[CORETB] Simulation error. Timeout. Time: %u\n" ANSI_COLOR_RESET, getTime());
-                exit_code = 2;
         }
-        return exit_code;
+        return 0;
 }
 // -----------------------------------------------------------------------------
 bool CORETB::CheckTOHOST(bool &ok) {
