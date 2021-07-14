@@ -3,9 +3,9 @@ from nmigen import Module
 from nmigen import Record
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.gateware.csr import CSRFile
-from bellatrix.gateware.isa import CSRIndex
-from bellatrix.gateware.isa import PrivMode
+from bellatrix.gateware.core.csr import CSRFile
+from bellatrix.gateware.core.isa import CSRIndex
+from bellatrix.gateware.core.isa import PrivMode
 from operator import or_
 from functools import reduce
 

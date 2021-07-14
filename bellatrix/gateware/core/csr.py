@@ -3,21 +3,21 @@ from nmigen import Record
 from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.gateware.isa import CSRAccess
-from bellatrix.gateware.isa import PrivMode
+from bellatrix.gateware.core.isa import CSRAccess
+from bellatrix.gateware.core.isa import PrivMode
+from bellatrix.gateware.core.isa import CSRIndex
+from bellatrix.gateware.core.isa import basic_rw_layout
+from bellatrix.gateware.core.isa import basic_ro_layout
+from bellatrix.gateware.core.isa import misa_layout
+from bellatrix.gateware.core.isa import mstatus_layout
+from bellatrix.gateware.core.isa import mtvec_layout
+from bellatrix.gateware.core.isa import mepc_layout
+from bellatrix.gateware.core.isa import mip_layout
+from bellatrix.gateware.core.isa import mie_layout
+from bellatrix.gateware.core.isa import mcause_layout
+from bellatrix.gateware.core.isa import dcsr_layout
+from bellatrix.gateware.core.isa import tdata1_layout
 from typing import List, Tuple, Dict
-from bellatrix.gateware.isa import CSRIndex
-from bellatrix.gateware.isa import basic_rw_layout
-from bellatrix.gateware.isa import basic_ro_layout
-from bellatrix.gateware.isa import misa_layout
-from bellatrix.gateware.isa import mstatus_layout
-from bellatrix.gateware.isa import mtvec_layout
-from bellatrix.gateware.isa import mepc_layout
-from bellatrix.gateware.isa import mip_layout
-from bellatrix.gateware.isa import mie_layout
-from bellatrix.gateware.isa import mcause_layout
-from bellatrix.gateware.isa import dcsr_layout
-from bellatrix.gateware.isa import tdata1_layout
 
 # layout for CSRs:
 # (name, shape/size, access type)

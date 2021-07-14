@@ -10,9 +10,9 @@ from nmigen.build import Platform
 from nmigen.lib.fifo import SyncFIFOBuffered
 from nmigen_soc.wishbone.bus import CycleType
 from nmigen_soc.wishbone.bus import Interface
-from bellatrix.gateware.isa import Funct3
-from bellatrix.gateware.cache import Cache
-from bellatrix.gateware.wishbone import Arbiter
+from bellatrix.gateware.core.isa import Funct3
+from bellatrix.gateware.core.cache import Cache
+from bellatrix.gateware.core.wishbone import Arbiter
 
 
 class DataFormat(Elaboratable):

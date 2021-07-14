@@ -14,6 +14,7 @@ Layout = List[Tuple[str, int, bool]]
 
 
 class _Endpoint(Record):
+    '''Define the input/output of a stage'''
     def __init__(self, layout: Layout, direction: Direction, name: str) -> None:
         if direction not in (DIR_FANIN, DIR_FANOUT):
             valid = (DIR_FANIN, DIR_FANOUT)
@@ -25,20 +26,16 @@ class _Endpoint(Record):
                 raise ValueError(f'{item} cannot be used as a signal in the endpoint layout')
 
         full_layout = [
-            ('retire', 1, direction),  # increment instruction counter
+            ('retire', 1, direction),  # increment instruction counter. TODO check if needed in the end...
             ('valid',  1, direction),
-            ('stall',  1, DIR_FANOUT if direction is DIR_FANIN else DIR_FANIN),
+            ('stall',  1, DIR_FANOUT if direction is DIR_FANIN else DIR_FANIN),  # this signal goes from right to left
         ]
 
         for item in layout:
-            full_layout.append(item[:2] + (direction,))  # use only first 2 values in layout
+            full_layout.append(item[:2] + (direction,))  # use only first 2 values in layout: (name, size)
 
         # create the signals
         super().__init__(full_layout, name=name)
-
-        # add resetless attribute to signals
-        for name, size, resetless in layout:
-            getattr(self, name).resetless = resetless
 
 
 class Stage(Elaboratable):

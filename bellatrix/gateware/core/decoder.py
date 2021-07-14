@@ -3,11 +3,11 @@ from nmigen import Signal
 from nmigen import Module
 from nmigen import Elaboratable
 from nmigen.build import Platform
-from bellatrix.gateware.isa import Funct7
-from bellatrix.gateware.isa import Funct3
-from bellatrix.gateware.isa import Funct12
-from bellatrix.gateware.isa import Opcode
-from bellatrix.gateware.isa import PrivMode
+from bellatrix.gateware.core.isa import Funct7
+from bellatrix.gateware.core.isa import Funct3
+from bellatrix.gateware.core.isa import Funct12
+from bellatrix.gateware.core.isa import Opcode
+from bellatrix.gateware.core.isa import PrivMode
 from functools import reduce
 from operator import or_
 from enum import IntEnum

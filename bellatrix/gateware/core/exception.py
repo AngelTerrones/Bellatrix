@@ -4,11 +4,11 @@ from nmigen import Signal
 from nmigen import Elaboratable
 from nmigen.lib.coding import PriorityEncoder
 from nmigen.build import Platform
-from bellatrix.gateware.csr import AutoCSR
-from bellatrix.gateware.csr import CSRFile
-from bellatrix.gateware.isa import CSRIndex
-from bellatrix.gateware.isa import ExceptionCause
-from bellatrix.gateware.isa import PrivMode
+from bellatrix.gateware.core.csr import AutoCSR
+from bellatrix.gateware.core.csr import CSRFile
+from bellatrix.gateware.core.isa import CSRIndex
+from bellatrix.gateware.core.isa import ExceptionCause
+from bellatrix.gateware.core.isa import PrivMode
 
 
 class ExceptionUnit(Elaboratable, AutoCSR):
