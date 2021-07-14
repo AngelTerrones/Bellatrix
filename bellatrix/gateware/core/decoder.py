@@ -27,7 +27,6 @@ class DecoderUnit(Elaboratable):
         self.enable_rv32m = enable_rv32m
 
         self.instruction     = Signal(32)
-        self.instruction2    = Signal(32)
         self.funct3          = Signal(Funct3)
         self.gpr_rs1         = Signal(5)
         self.gpr_rs1_use     = Signal()
@@ -77,7 +76,6 @@ class DecoderUnit(Elaboratable):
         jimm20       = Signal((21, True))
         itype        = Signal(Type)
         instruction  = self.instruction
-        instruction2 = self.instruction2
 
         with m.Switch(opcode):
             with m.Case(Opcode.LUI):
@@ -130,11 +128,11 @@ class DecoderUnit(Elaboratable):
         ]
 
         m.d.comb += [
-            self.gpr_rs1.eq(instruction2[15:20]),
+            self.gpr_rs1.eq(instruction[15:20]),
             self.gpr_rs1_use.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.I, Type.S, Type.B)])),
-            self.gpr_rs2.eq(instruction2[20:25]),
+            self.gpr_rs2.eq(instruction[20:25]),
             self.gpr_rs2_use.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.S, Type.B)])),
-            self.gpr_rd.eq(instruction2[7:12]),
+            self.gpr_rd.eq(instruction[7:12]),
             self.gpr_we.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.I, Type.U, Type.J)])),
             self.funct3.eq(funct3)
         ]

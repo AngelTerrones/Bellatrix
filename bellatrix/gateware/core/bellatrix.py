@@ -266,7 +266,6 @@ class Bellatrix(Elaboratable):
         # Decode Stage
         cpu.d.comb += [
             decoder.instruction.eq(d.endpoint_a.instruction),
-            decoder.instruction2.eq(d.endpoint_a.instruction2),
             decoder.privmode.eq(exception.m_privmode)
         ]
         with cpu.Switch(d.stall):
@@ -356,8 +355,8 @@ class Bellatrix(Elaboratable):
         ]
         cpu.d.comb += [
             logic.op.eq(x.endpoint_a.funct3),
-            logic.dat1.eq(x.endpoint_a.src_data1b),
-            logic.dat2.eq(x.endpoint_a.src_data2b)
+            logic.dat1.eq(x.endpoint_a.src_data1),
+            logic.dat2.eq(x.endpoint_a.src_data2)
         ]
         cpu.d.comb += [
             shifter.direction.eq(x.endpoint_a.shift_dir),
@@ -425,7 +424,6 @@ class Bellatrix(Elaboratable):
         cpu.d.comb += [
             compare.op.eq(m.endpoint_a.funct3),
             compare.zero.eq(m.endpoint_a.zero),
-            compare.zero2.eq(m.endpoint_a.zero2),
             compare.negative.eq(m.endpoint_a.negative),
             compare.overflow.eq(m.endpoint_a.overflow),
             compare.carry.eq(m.endpoint_a.carry)
@@ -579,18 +577,15 @@ class Bellatrix(Elaboratable):
 
         # F -> D
         f.endpoint_b.instruction.reset = 0x00000013
-        f.endpoint_b.instruction2.reset = 0x00000013
         with cpu.If(f.kill):
             cpu.d.sync += [
                 f.endpoint_b.instruction.eq(0x00000013),
-                f.endpoint_b.instruction2.eq(0x00000013),
                 f.endpoint_b.fetch_error.eq(0)
             ]
         with cpu.Elif(~f.stall):
             cpu.d.sync += [
                 f.endpoint_b.pc.eq(fetch.f2_pc),
                 f.endpoint_b.instruction.eq(fetch.f_instruction),
-                f.endpoint_b.instruction2.eq(fetch.f_instruction),
                 f.endpoint_b.fetch_error.eq(fetch.f_bus_error)
             ]
             if self.predictor_enable:
@@ -601,7 +596,6 @@ class Bellatrix(Elaboratable):
         with cpu.Elif(~d.stall):
             cpu.d.sync += [
                 f.endpoint_b.instruction.eq(0x00000013),
-                f.endpoint_b.instruction2.eq(0x00000013),
                 f.endpoint_b.fetch_error.eq(0)
             ]
 
@@ -636,8 +630,6 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.gpr_we.eq(decoder.gpr_we),
                 d.endpoint_b.src_data1.eq(rs1_data),
                 d.endpoint_b.src_data2.eq(rs2_data),
-                d.endpoint_b.src_data1b.eq(rs1_data),
-                d.endpoint_b.src_data2b.eq(rs2_data),
                 d.endpoint_b.immediate.eq(decoder.immediate),
                 d.endpoint_b.funct3.eq(decoder.funct3),
                 d.endpoint_b.needed_in_m.eq(decoder.needed_in_m),
@@ -737,7 +729,6 @@ class Bellatrix(Elaboratable):
                 x.endpoint_b.result.eq(x_result),
                 x.endpoint_b.ls_addr.eq(x_ls_addr),
                 x.endpoint_b.zero.eq(adder.result == 0),
-                x.endpoint_b.zero2.eq(adder.result == 0),
                 x.endpoint_b.overflow.eq(adder.overflow),
                 x.endpoint_b.negative.eq(adder.result[-1]),
                 x.endpoint_b.carry.eq(adder.carry),

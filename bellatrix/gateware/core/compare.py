@@ -9,7 +9,6 @@ class CompareUnit(Elaboratable):
     def __init__(self) -> None:
         self.op       = Signal(Funct3)  # Input
         self.zero     = Signal()   # Input
-        self.zero2    = Signal()   # Input
         self.negative = Signal()   # Input
         self.overflow = Signal()   # Input
         self.carry    = Signal()   # Input
@@ -24,9 +23,9 @@ class CompareUnit(Elaboratable):
             with m.Case(Funct3.BNE):
                 m.d.comb += self.cmp_ok.eq(~self.zero)
             with m.Case(Funct3.BLT, Funct3.SLT):
-                m.d.comb += self.cmp_ok.eq(~self.zero2 & (self.negative != self.overflow))
+                m.d.comb += self.cmp_ok.eq(~self.zero & (self.negative != self.overflow))
             with m.Case(Funct3.BLTU, Funct3.SLTU):
-                m.d.comb += self.cmp_ok.eq(~self.zero2 & self.carry)
+                m.d.comb += self.cmp_ok.eq(~self.zero & self.carry)
             with m.Case(Funct3.BGE):
                 m.d.comb += self.cmp_ok.eq(self.negative == self.overflow)
             with m.Case(Funct3.BGEU):

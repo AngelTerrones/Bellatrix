@@ -6,7 +6,6 @@ _af_layout = [
 _fd_layout = [
     ('pc',              32, True),
     ('instruction',     32, False),
-    ('instruction2',    32, False),
     ('fetch_error',      1, False),
     ('prediction',       1, True),
     ('prediction_state', 2, True)
@@ -19,8 +18,6 @@ _dx_layout = [
     ('gpr_we',           1, False),
     ('src_data1',       32, True),
     ('src_data2',       32, True),
-    ('src_data1b',      32, True),
-    ('src_data2b',      32, True),
     ('immediate',       32, True),
     ('funct3',           3, True),
     ('needed_in_m',      1, False),
@@ -73,7 +70,6 @@ _xm_layout = [
     ('result',            32, True),
     ('ls_addr',           32, True),
     ('zero',               1, True),
-    ('zero2',              1, True),
     ('negative',           1, True),
     ('overflow',           1, True),
     ('carry',              1, True),

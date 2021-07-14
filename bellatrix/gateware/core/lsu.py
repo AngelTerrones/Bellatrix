@@ -250,7 +250,6 @@ class CachedLSU(LSUInterface, Elaboratable):
             dcache.s1_address.eq(self.x_addr),
             dcache.s1_flush.eq(0),              # TODO: connect
             dcache.s2_address.eq(self.m_addr),
-            dcache.s2_address2.eq(self.m_addr),  # duplicate. To reduce path/timing
             dcache.s2_valid.eq(m_use_cache & self.m_load),    # address in range, and load. Ignore stores
             dcache.s2_stall.eq(0),
             dcache.s2_wdata.eq(m_data_w),
