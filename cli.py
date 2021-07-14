@@ -9,7 +9,7 @@ import subprocess
 from subprocess import CalledProcessError
 from nmigen.back import verilog
 from nmigen.hdl.ir import Fragment
-from bellatrix.gateware.core.core import Bellatrix
+from bellatrix.gateware.core.bellatrix import Bellatrix
 from bellatrix.config.config import logo
 from bellatrix.config.config import load_config
 from bellatrix.config.config import cpu_variants
