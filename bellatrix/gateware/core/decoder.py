@@ -46,7 +46,7 @@ class DecoderUnit(Elaboratable):
         self.logic           = Signal()
         self.shift           = Signal()
         self.shift_direction = Signal()
-        self.shit_signed     = Signal()
+        self.shift_signed    = Signal()
         self.compare         = Signal()
         self.csr             = Signal()
         self.csr_we          = Signal()
@@ -236,7 +236,7 @@ class DecoderUnit(Elaboratable):
                 (Opcode.OP, Funct3.ADD, Funct7.SUB, None)
             ])),
             self.shift_direction.eq(funct3 == Funct3.SR),
-            self.shit_signed.eq(funct7 == Funct7.SRA),
+            self.shift_signed.eq(funct7 == Funct7.SRA),
             self.csr_we.eq(~funct3[1] | self.gpr_rs1.any()),
         ]
 

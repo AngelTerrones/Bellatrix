@@ -649,7 +649,7 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.divider.eq(decoder.divide),
                 d.endpoint_b.add_sub.eq(decoder.substract),
                 d.endpoint_b.shift_dir.eq(decoder.shift_direction),
-                d.endpoint_b.shift_sign.eq(decoder.shit_signed),
+                d.endpoint_b.shift_sign.eq(decoder.shift_signed),
                 d.endpoint_b.jb_base_addr.eq(d_jb_base_addr),
                 d.endpoint_b.ls_base_addr.eq(rs1_data),
                 d.endpoint_b.st_data.eq(rs2_data),
