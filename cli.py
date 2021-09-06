@@ -67,7 +67,7 @@ def build_testbench(args):
         os.makedirs(path, exist_ok=True)
 
         # generate verilog
-        core_config = load_config(variant, args.config, False)
+        core_config = load_config(variant, args.config, args.verbose)
         CPU_to_verilog(core_config, f'{path}/bellatrix_core.v')
 
         # generate testbench and makefile
@@ -166,6 +166,8 @@ def main() -> None:
                            help='CPU type')
     p_buildtb.add_argument('--config',
                            help='Configuration file for custom variants')
+    p_buildtb.add_argument('--verbose', action='store_true',
+                           help='Print the configuration file')
     # --------------------------------------------------------------------------
     # run compliance test
     p_compliance = p_action.add_parser('compliance', help='Run the RISC-V compliance test')
@@ -174,6 +176,8 @@ def main() -> None:
     p_compliance.add_argument('--config', help='Configuration file for custom variants')
     p_compliance.add_argument('--isa', choices=['rv32i', 'rv32im', 'rv32mi', 'rv32ui', 'rv32Zicsr', 'rv32Zifencei'],
                               nargs='+', required=True, help='Available compliance tests',)
+    p_compliance.add_argument('--verbose', action='store_true',
+                              help='Print the configuration file')
     # --------------------------------------------------------------------------
     args = parser.parse_args()
     # --------------------------------------------------------------------------
