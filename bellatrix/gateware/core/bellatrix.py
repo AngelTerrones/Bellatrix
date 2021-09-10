@@ -515,7 +515,7 @@ class Bellatrix(Elaboratable):
         if self.enable_rv32m:
             m.add_stall_source(divider.busy)
         m.add_stall_source(lsu.m_busy)
-        m.add_stall_source(m.endpoint_a.csr & ~csr.port.ok)
+        m.add_stall_source(m.endpoint_a.csr & ~csr.port.done)
         m.add_kill_source(exception.m_exception)
         # ----------------------------------------------------------------------
         # Write Back Stage
