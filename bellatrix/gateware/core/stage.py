@@ -22,8 +22,8 @@ class _Endpoint(Record):
 
         # check for reserved keywords. I will add these signals later
         for item in layout:
-            if item[0] in ('valid', 'stall'):
-                raise ValueError(f'{item} cannot be used as a signal in the endpoint layout')
+            if item[0] in ('valid', 'stall', 'retire'):
+                raise ValueError(f'Reserved keyword: {item} cannot be used as a signal in the endpoint layout')
 
         full_layout = [
             ('retire', 1, direction),  # increment instruction counter. TODO check if needed in the end...
@@ -32,7 +32,7 @@ class _Endpoint(Record):
         ]
 
         for item in layout:
-            full_layout.append(item[:2] + (direction,))  # use only first 2 values in layout: (name, size)
+            full_layout.append(item + (direction,))  # use only first 2 values in layout: (name, size)
 
         # create the signals
         super().__init__(full_layout, name=name)
@@ -83,17 +83,12 @@ class Stage(Elaboratable):
             with m.If(self.kill):
                 m.d.sync += [
                     self.endpoint_b.valid.eq(0),
-                    self.endpoint_b.retire.eq(self.retire)
-                ]
-            with m.Elif(~self.stall):
-                m.d.sync += [
-                    self.endpoint_b.valid.eq(self.valid),
-                    self.endpoint_b.retire.eq(self.retire)
+                    self.endpoint_b.retire.eq(0)  # this will ignore instructions that generates exceptions...
                 ]
             with m.Elif(~self.endpoint_b.stall):
                 m.d.sync += [
-                    self.endpoint_b.valid.eq(0),
-                    self.endpoint_b.retire.eq(0)
+                    self.endpoint_b.valid.eq(self.valid & ~self.stall),
+                    self.endpoint_b.retire.eq(self.retire & ~self.stall)
                 ]
 
         m.d.comb += self.stall.eq(reduce(or_, self._stall_sources, 0))
