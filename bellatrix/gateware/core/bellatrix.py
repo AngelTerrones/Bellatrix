@@ -326,13 +326,13 @@ class Bellatrix(Elaboratable):
 
         # forwarding
         cpu.d.comb += [
-            fwd_x_rs1.eq((decoder.gpr_rs1 == x.endpoint_a.gpr_rd) & decoder.gpr_rs1.any() & x.endpoint_a.gpr_we),
-            fwd_m_rs1.eq((decoder.gpr_rs1 == m.endpoint_a.gpr_rd) & decoder.gpr_rs1.any() & m.endpoint_a.gpr_we),
-            fwd_w_rs1.eq((decoder.gpr_rs1 == w.endpoint_a.gpr_rd) & decoder.gpr_rs1.any() & w.endpoint_a.gpr_we),
+            fwd_x_rs1.eq((decoder.gpr_rs1 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we),
+            fwd_m_rs1.eq((decoder.gpr_rs1 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we),
+            fwd_w_rs1.eq((decoder.gpr_rs1 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we),
 
-            fwd_x_rs2.eq((decoder.gpr_rs2 == x.endpoint_a.gpr_rd) & decoder.gpr_rs2.any() & x.endpoint_a.gpr_we),
-            fwd_m_rs2.eq((decoder.gpr_rs2 == m.endpoint_a.gpr_rd) & decoder.gpr_rs2.any() & m.endpoint_a.gpr_we),
-            fwd_w_rs2.eq((decoder.gpr_rs2 == w.endpoint_a.gpr_rd) & decoder.gpr_rs2.any() & w.endpoint_a.gpr_we),
+            fwd_x_rs2.eq((decoder.gpr_rs2 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we),
+            fwd_m_rs2.eq((decoder.gpr_rs2 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we),
+            fwd_w_rs2.eq((decoder.gpr_rs2 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we),
         ]
 
         bubble_x = (x.endpoint_a.needed_in_m | x.endpoint_a.needed_in_w)
@@ -627,6 +627,7 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.pc.eq(d.endpoint_a.pc),
                 d.endpoint_b.instruction.eq(d.endpoint_a.instruction),
                 d.endpoint_b.gpr_rd.eq(decoder.gpr_rd),
+                d.endpoint_b.gpr_rd_is_nzero.eq(decoder.gpr_rd_is_nzero),
                 d.endpoint_b.gpr_we.eq(decoder.gpr_we),
                 d.endpoint_b.src_data1.eq(rs1_data),
                 d.endpoint_b.src_data2.eq(rs2_data),
@@ -713,6 +714,7 @@ class Bellatrix(Elaboratable):
                 x.endpoint_b.pc.eq(x.endpoint_a.pc),
                 x.endpoint_b.instruction.eq(x.endpoint_a.instruction),
                 x.endpoint_b.gpr_rd.eq(x.endpoint_a.gpr_rd),
+                x.endpoint_b.gpr_rd_is_nzero.eq(x.endpoint_a.gpr_rd_is_nzero),
                 x.endpoint_b.gpr_we.eq(x.endpoint_a.gpr_we),
                 x.endpoint_b.needed_in_w.eq(x.endpoint_a.needed_in_w),
                 x.endpoint_b.funct3.eq(x.endpoint_a.funct3),
@@ -771,6 +773,7 @@ class Bellatrix(Elaboratable):
             cpu.d.sync += [
                 m.endpoint_b.pc.eq(m.endpoint_a.pc),
                 m.endpoint_b.gpr_rd.eq(m.endpoint_a.gpr_rd),
+                m.endpoint_b.gpr_rd_is_nzero.eq(m.endpoint_a.gpr_rd_is_nzero),
                 m.endpoint_b.gpr_we.eq(m.endpoint_a.gpr_we),
                 m.endpoint_b.result.eq(m_result),
                 m.endpoint_b.ld_result.eq(data_sel.m_load_data),

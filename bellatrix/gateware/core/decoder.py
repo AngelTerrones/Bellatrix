@@ -24,15 +24,18 @@ class Type(IntEnum):
 
 class DecoderUnit(Elaboratable):
     def __init__(self, enable_rv32m: bool) -> None:
+        # config
         self.enable_rv32m = enable_rv32m
-
+        # ports
         self.instruction     = Signal(32)
+        self.privmode        = Signal(PrivMode)
         self.funct3          = Signal(Funct3)
         self.gpr_rs1         = Signal(5)
         self.gpr_rs1_use     = Signal()
         self.gpr_rs2         = Signal(5)
         self.gpr_rs2_use     = Signal()
         self.gpr_rd          = Signal(5)
+        self.gpr_rd_is_nzero = Signal()
         self.gpr_we          = Signal()
         self.immediate       = Signal(32)
         self.lui             = Signal()
@@ -60,7 +63,6 @@ class DecoderUnit(Elaboratable):
         self.multiply        = Signal()
         self.divide          = Signal()
         self.illegal         = Signal()
-        self.privmode        = Signal(PrivMode)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -133,6 +135,7 @@ class DecoderUnit(Elaboratable):
             self.gpr_rs2.eq(instruction[20:25]),
             self.gpr_rs2_use.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.S, Type.B)])),
             self.gpr_rd.eq(instruction[7:12]),
+            self.gpr_rd_is_nzero.eq(self.gpr_rd.any()),
             self.gpr_we.eq(reduce(or_, [itype == tmp for tmp in (Type.R, Type.I, Type.U, Type.J)])),
             self.funct3.eq(funct3)
         ]
@@ -223,7 +226,7 @@ class DecoderUnit(Elaboratable):
             self.ebreak.eq(match([
                 (Opcode.SYSTEM, Funct3.PRIV, None, Funct12.EBREAK)
             ])),
-            self.mret.eq((self.privmode == PrivMode.Machine) & match([
+            self.mret.eq((self.privmode == PrivMode.Machine) & match([ # mmm, solo aplica para machine mode. Que pasa si se agregan m
                 (Opcode.SYSTEM, Funct3.PRIV, None, Funct12.MRET)
             ])),
             self.fence_i.eq(match([
