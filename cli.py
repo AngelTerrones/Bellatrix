@@ -61,8 +61,8 @@ def build_testbench(args):
         rebuild = need_rebuild(path)
 
         if (os.path.exists(f'{path}/core.exe') and not rebuild):
-            print('Testbench up-to-date. Skipping.')
-            return
+            print(f'Build of {variant} up-to-date. Skipping.')
+            continue
 
         os.makedirs(path, exist_ok=True)
 
