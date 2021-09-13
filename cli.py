@@ -104,13 +104,13 @@ def run_compliance(args):
     os.environ['RISCV_PREFIX'] = f'{riscv_path}/riscv64-unknown-elf-'
 
     variant_msg = []
+    print('------------------------------------------------------------')
     for variant in args.variant:
-        print('------------------------------------------------------------')
-        print(f'Running tests for {variant} configuration:\n')
-
         os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{variant}')
         isa_msg = []
-        for isa in args.isa:
+        n_isa = len(args.isa)
+        for idx, isa in enumerate(args.isa):
+            print(f'Running tests for {variant} configuration: {idx + 1}/{n_isa}', end='\r', flush=True)
             try:
                 cmd = f'make --no-print-directory -C {args.rvc} variant RISCV_TARGET=nht RISCV_DEVICE=rv32i RISCV_ISA={isa}'
                 output = subprocess.check_output(cmd, shell=True, text=True, stderr=subprocess.STDOUT)
@@ -127,8 +127,8 @@ def run_compliance(args):
             logfile = os.path.abspath(f'build/{variant}') + f'/{isa}.log'
             with open(logfile, 'w') as f:
                 f.write(output)
-
         variant_msg.append(isa_msg)
+        print('')
 
     print('============================================================')
     print('Result:\n')
@@ -136,6 +136,8 @@ def run_compliance(args):
         print(f'{variant} configuration:')
         for tmp in msg:
             print(f'\t{tmp}')
+
+    print('\nPlease, check logs at build/<variant>')
     print('============================================================')
 
 
