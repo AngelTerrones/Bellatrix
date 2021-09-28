@@ -55,9 +55,8 @@ class Cache(Elaboratable):
 
         # -------------------------------------------------------------------------
         # IO
-        self.s1_address = Record(self.pc_layout)
-        self.s1_flush   = Signal()
-
+        self.s1_address  = Record(self.pc_layout)
+        self.s1_flush    = Signal()
         self.s2_address  = Record(self.pc_layout)
         self.s2_valid    = Signal()
         self.s2_stall    = Signal()
@@ -79,9 +78,9 @@ class Cache(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
-        miss          = Signal()
-        miss_data     = Signal(32)
-        bus_addr      = Record(self.pc_layout)
+        miss      = Signal()
+        miss_data = Signal(32)
+        bus_addr  = Record(self.pc_layout)
 
         way_layout = [
             ('data',    32),
@@ -90,17 +89,19 @@ class Cache(Elaboratable):
             ('sel_lru', 1)
         ]
         if self.enable_write:
-            way_layout.append(('sel_we',   1))
+            way_layout.append(('sel_we', 1))
 
-        ways     = Array(Record(way_layout, name='way_idx{}'.format(_way)) for _way in range(self.nways))
-        fill_cnt = Signal.like(self.s1_address.offset)
+        ways     = Array(Record(way_layout, name='way_idx{}'.format(idx)) for idx in range(self.nways))
+        fill_cnt = Signal.like(self.s1_address.offset)  # counter for refill
 
         # Check hit/miss
         way_hit = m.submodules.way_hit = Encoder(self.nways)
         for idx, way in enumerate(ways):
-            m.d.comb += way_hit.i[idx].eq(~(way.tag ^ self.s2_address.tag).any() & way.valid)
+            # XORing the tags to check is both are the same
+            tag_eq = ~(way.tag ^ self.s2_address.tag).any()
+            m.d.comb += way_hit.i[idx].eq(tag_eq & way.valid)
 
-        m.d.comb += miss.eq(self.s2_miss & self.s2_valid)
+        m.d.comb += miss.eq(way_hit.n & self.s2_valid)
         if self.enable_write:
             # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
             m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we)
@@ -112,45 +113,63 @@ class Cache(Elaboratable):
             # LRU es un vector de N bits, cada uno indicado el set a reemplazar
             # como NWAY es máximo 2, cada LRU es de un bit
             lru         = Signal(self.nlines)
-            _lru        = lru.bit_select(self.s2_address.line, 1)
-            write_ended = self.bus_valid & self.bus_ack & self.bus_last  # err ^ ack = = 1
-            access_hit  = ~miss & (way_hit.o == _lru)
+            write_ended = Signal()
+            access_hit  = Signal()
+            lru_bit     = lru.bit_select(self.s2_address.line, 1)
+            m.d.comb += [
+                write_ended.eq(self.bus_valid & self.bus_ack & self.bus_last),  # only if write is ok, ofc
+                access_hit.eq(~way_hit.n & (way_hit.o == lru_bit) & self.s2_valid)
+            ]
             with m.If(write_ended | access_hit):
-                m.d.sync += _lru.eq(~_lru)
+                m.d.sync += lru_bit.eq(~lru_bit)
 
-        # read data from the cache
-        with m.FSM(name='miss_data'):
+        # mark the selected way for replacement (during refill)
+        if self.nways == 1:
+            m.d.comb += ways[0].sel_lru.eq(self.bus_valid)
+        else:
+            m.d.comb += ways[lru.bit_select(self.s2_address.line, 1)].sel_lru.eq(self.bus_valid)
+
+        # Read data from the cache.
+        # Defaults to data from cache if the data is in it (hit).
+        # Otherwise (miss), latch the first fetch from memory.
+        with m.FSM(name='read'):
             with m.State('IDLE'):
                 m.d.comb += self.s2_rdata.eq(ways[way_hit.o].data)
                 with m.If(self.bus_valid & self.bus_ack):
+                    # latch first access.
                     m.d.sync += miss_data.eq(self.bus_data),
                     m.next = 'LATCHED'
             with m.State('LATCHED'):
                 m.d.comb += self.s2_rdata.eq(miss_data)
                 with m.If(~(self.bus_valid | self.s2_stall)):
+                    # no stalls and done with refill
                     m.next = 'IDLE'
 
+        # refill the cache
         tag_addr = Signal.like(self.s2_address.line)
         tag_data = Signal.like(self.s2_address.tag)
         with m.FSM(name='refill'):
             with m.State('READ'):
-                m.d.comb += self.s2_miss.eq(way_hit.n)
+                m.d.comb += self.s2_miss.eq(miss)
                 with m.If(miss & ~self.s2_kill):
                     m.d.sync += [
                         tag_addr.eq(self.s2_address.line),
                         tag_data.eq(self.s2_address.tag),
                         self.bus_addr.eq(self.s2_address),
-                        bus_addr.eq(self.s2_address),
                         self.bus_valid.eq(1),
-                        fill_cnt.eq(self.s2_address.offset - 1)
+                        bus_addr.eq(self.s2_address),  # internal use for addressing the cache memory
+                        fill_cnt.eq(self.s2_address.offset - 1)  # wrap around: from n to n-1
                     ]
                     m.next = 'REFILL'
             with m.State('REFILL'):
-                m.d.comb += self.s2_miss.eq(1)
-                m.d.comb += self.bus_last.eq(fill_cnt == self.bus_addr.offset)
-
+                m.d.comb += [
+                    self.s2_miss.eq(1),  # hard miss
+                    self.bus_last.eq(fill_cnt == self.bus_addr.offset)  # check if this is the last access to memory
+                ]
+                # For each ack, increase the offset field of the bus address.
                 with m.If(self.bus_ack):
                     m.d.sync += self.bus_addr.offset.eq(self.bus_addr.offset + 1)
+                # conditions to end the refill
                 with m.If((self.bus_ack & self.bus_last) | self.bus_err | self.s1_flush | self.s2_kill):
                     m.d.sync += self.bus_valid.eq(0)
                     m.next = 'NOP'
@@ -158,15 +177,10 @@ class Cache(Elaboratable):
                 m.d.comb += self.s2_miss.eq(0)
                 m.next = 'READ'
 
-        # mark the selected way for replacement (refill)
-        if self.nways == 1:
-            m.d.comb += ways[0].sel_lru.eq(self.bus_valid)
-        else:
-            m.d.comb += ways[lru.bit_select(self.s2_address.line, 1)].sel_lru.eq(self.bus_valid)
-
         # generate for N ways
         for way in ways:
             # create the memory structures for valid, tag and data.
+            # Transparent = requires a EN(able) signal to read/write
             valid = Signal(self.nlines)  # Valid bits
 
             tag_m    = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
@@ -180,10 +194,10 @@ class Cache(Elaboratable):
             m.submodules += data_rp, data_wp
 
             # handle valid
-            with m.If(self.s1_flush):  # flush
+            with m.If(self.s1_flush):
                 m.d.sync += valid.eq(0)
-            with m.Elif(way.sel_lru):  # refill incomplete
-                m.d.sync += valid.bit_select(bus_addr.line, 1).eq(self.bus_last & self.bus_ack)
+            with m.Elif(way.sel_lru):
+                m.d.sync += valid.bit_select(bus_addr.line, 1).eq(self.bus_last & self.bus_ack)  # end of refill.
 
             # casting
             rdata_ptr = Record(self.mem_ptr_layout)
@@ -195,7 +209,6 @@ class Cache(Elaboratable):
 
                 tag_rp.addr.eq(self.s1_address.line),
                 tag_rp.en.eq(~self.s2_stall),
-
                 tag_wp.addr.eq(tag_addr),
                 tag_wp.data.eq(tag_data),
                 tag_wp.en.eq(way.sel_lru & self.bus_ack & self.bus_last),
@@ -221,7 +234,7 @@ class Cache(Elaboratable):
                         aux_write_addr.eq(self.s2_address),
                         data_wp.addr.eq(aux_write_addr.addr),
                         data_wp.data.eq(self.s2_wdata),
-                        data_wp.en.eq(Repl(way.sel_we & ~self.s2_miss, 4) & self.s2_sel)
+                        data_wp.en.eq(Repl(way.sel_we & ~way_hit.n, 4) & self.s2_sel)
                     ]
             else:
                 m.d.comb += [

@@ -67,14 +67,13 @@ class ExceptionUnit(Elaboratable, AutoCSR):
         self.m_exception          = Signal()    # output
         self.m_privmode           = Signal(PrivMode)   # output
         if self.enable_extra_csr:
-            self.w_retire = Signal()
+            self.w_retire = Signal()  # input
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
 
         # --------------------------------------------------------------------------------
-        # Set MTVEC to the RESET address, to avoid getting lost in limbo if there's an exception
-        # before the boot code sets this to a valid value
+        # Set MTVEC to the RESET address
         self.mtvec.read.base.reset = self.core_reset_address >> 2
 
         # MISA reset value
@@ -86,7 +85,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
                 misa_ext |= 1 << (ord('u') - ord('a'))  # User mode enabled
 
             self.misa.read.extensions.reset = misa_ext
-            self.misa.read.mxl.reset = 0x1
+            self.misa.read.mxl.reset = 0x1  # XLEN = 32 bits
 
         if self.enable_user_mode:
             self.mstatus.read.mpp.reset = PrivMode.User
@@ -97,7 +96,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
         m.d.comb += self.m_privmode.eq(privmode)
 
         # --------------------------------------------------------------------------------
-        # Read/write behavior for all registers in this module
+        # Read/write behavior for all registers in this module. Default behavior
         for register in self.get_csrs():
             with m.If(register.update):
                 m.d.sync += register.read.eq(register.write)
@@ -124,9 +123,9 @@ class ExceptionUnit(Elaboratable, AutoCSR):
         ]
 
         # generate the exception/trap/interrupt signal to kill the pipeline
-        # interrupts are globally enable for less priviledge mode than Machine
-        xinterrupt = self.m_valid & ~interrupts.n & (self.mstatus.read.mie | (privmode != PrivMode.Machine)) & ~self.m_store
-        m.d.comb += self.m_exception.eq(~traps.n | xinterrupt)
+        # interrupts are globally enable in user mode
+        xinterrupt = ~interrupts.n & (self.mstatus.read.mie | (privmode != PrivMode.Machine)) & ~self.m_store  # do not block a store...
+        m.d.comb += self.m_exception.eq(self.m_valid & (~traps.n | xinterrupt))
 
         # --------------------------------------------------------------------------------
         m.d.sync += [
@@ -136,6 +135,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
         ]
 
         if self.enable_user_mode:
+            # TODO check if this is ok...
             with m.If(self.mstatus.write.mpp != PrivMode.User):
                 # In case of writting an invalid priviledge mode, force a valid one
                 # For this case, anything different to the User mode is forced to Machine mode.
@@ -145,7 +145,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
 
         # behavior for exception handling
         with m.If(self.m_exception):
-            # Register the exception and move one priviledge mode down.
+            # Register the exception and move one priviledge mode up.
             m.d.sync += [
                 self.mepc.read.base.eq(self.m_pc[2:]),
                 self.mstatus.read.mpie.eq(self.mstatus.read.mie),
@@ -179,7 +179,7 @@ class ExceptionUnit(Elaboratable, AutoCSR):
                     self.mcause.read.ecode.eq(interrupts.o),
                     self.mcause.read.interrupt.eq(1)
                 ]
-        with m.Elif(self.m_mret):
+        with m.Elif(self.m_mret & self.m_valid):
             # restore old mie
             # Restore priviledge mode
             m.d.sync += [
@@ -197,16 +197,14 @@ class ExceptionUnit(Elaboratable, AutoCSR):
             m.d.sync += [
                 self.mcycle.read.eq(mcycle[:32]),
                 self.mcycleh.read.eq(mcycle[32:64]),
-                #
                 self.minstret.read.eq(minstret[:32]),
                 self.minstreth.read.eq(minstret[32:64])
             ]
 
-            m.d.comb += mcycle.eq(Cat(self.mcycle.read, self.mcycleh.read) + 1)
-            with m.If(self.w_retire):
-                m.d.comb += minstret.eq(Cat(self.minstret.read, self.minstreth.read) + 1)
-            with m.Else():
-                m.d.comb += minstret.eq(Cat(self.minstret.read, self.minstreth.read))
+            m.d.comb += [
+                mcycle.eq(Cat(self.mcycle.read, self.mcycleh.read) + 1),
+                minstret.eq(Cat(self.minstret.read, self.minstreth.read) + self.w_retire)
+            ]
 
             # shadow versions of MCYCLE and MINSTRET
             if self.enable_user_mode:

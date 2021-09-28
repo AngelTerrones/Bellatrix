@@ -17,16 +17,16 @@ from bellatrix.gateware.core.wishbone import Arbiter
 
 class DataFormat(Elaboratable):
     def __init__(self) -> None:
-        self.x_funct3     = Signal(Funct3)   # inputs
-        self.x_offset     = Signal(2)   # inputs
-        self.m_offset     = Signal(2)   # inputs
-        self.x_store_data = Signal(32)  # inputs  (raw data to store)
-        self.m_data_r     = Signal(32)  # inputs  (raw data from load)
-        self.m_funct3     = Signal(Funct3)   # inputs
-        self.x_byte_sel   = Signal(4)   # outputs
-        self.x_data_w     = Signal(32)  # outputs (formatted data to bus)
-        self.x_misaligned = Signal()    # outputs
-        self.m_load_data  = Signal(32)  # outputs (formatted data to pipeline)
+        self.x_funct3     = Signal(Funct3)   # input
+        self.x_offset     = Signal(2)        # input
+        self.x_store_data = Signal(32)       # input  (raw data to store)
+        self.x_byte_sel   = Signal(4)        # output
+        self.x_data_w     = Signal(32)       # output (formatted data to bus)
+        self.x_misaligned = Signal()         # output
+        self.m_offset     = Signal(2)        # input
+        self.m_data_r     = Signal(32)       # input  (raw data from load)
+        self.m_funct3     = Signal(Funct3)   # input
+        self.m_load_data  = Signal(32)       # output (formatted data to pipeline)
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -90,7 +90,6 @@ class LSUInterface:
         self.x_load        = Signal()    # input
         self.x_byte_sel    = Signal(4)   # input
         self.x_enable      = Signal()    # input
-        self.m_stall       = Signal()    # input
         self.m_load_data   = Signal(32)  # output
         self.m_busy        = Signal()    # output
         self.m_load_error  = Signal()    # output
@@ -108,31 +107,30 @@ class BasicLSU(LSUInterface, Elaboratable):
                     self.m_load_error.eq(0),
                     self.m_store_error.eq(0)
                 ]
-                with m.If((self.x_load | self.x_store) & self.x_enable & ~self.m_stall):
+                with m.If((self.x_load | self.x_store) & self.x_enable):
                     m.d.sync += [
                         self.dport.adr.eq(self.x_addr),
                         self.dport.dat_w.eq(self.x_data_w),
                         self.dport.sel.eq(self.x_byte_sel),
                         self.dport.we.eq(self.x_store),
                         self.dport.cyc.eq(1),
-                        self.dport.stb.eq(1)
+                        self.dport.stb.eq(1),
+                        self.m_busy.eq(1)
                     ]
                     m.next = 'BUSY'
             with m.State('BUSY'):
-                m.d.comb += self.m_busy.eq(1)
-
-                with m.If(self.dport.err):
-                    m.d.sync += [
-                        self.m_load_error.eq(~self.dport.we),
-                        self.m_store_error.eq(self.dport.we),
-                        self.m_badaddr.eq(self.dport.adr)
-                    ]
+                m.d.sync += [
+                    self.m_load_error.eq(~self.dport.we & self.dport.err),
+                    self.m_store_error.eq(self.dport.we & self.dport.err),
+                    self.m_badaddr.eq(self.dport.adr)
+                ]
                 with m.If(self.dport.ack | self.dport.err):
                     m.d.sync += [
                         self.m_load_data.eq(self.dport.dat_r),
                         self.dport.we.eq(0),
                         self.dport.cyc.eq(0),
-                        self.dport.stb.eq(0)
+                        self.dport.stb.eq(0),
+                        self.m_busy.eq(0)
                     ]
                     m.next = 'IDLE'
 
@@ -155,6 +153,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         self.m_addr       = Signal(32)  # input
         self.m_load       = Signal()    # input
         self.m_store      = Signal()    # input
+        self.m_stall      = Signal()    # input
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -165,7 +164,7 @@ class CachedLSU(LSUInterface, Elaboratable):
             ("sel",  4)
         ]
 
-        wbuffer_din  = Record(wbuffer_layout)
+        wbuffer_din  = Record(wbuffer_layout)  # for data casting
         wbuffer_dout = Record(wbuffer_layout)
 
         dcache  = m.submodules.dcache  = Cache(enable_write=True, **self.cache_kwargs)
@@ -180,6 +179,8 @@ class CachedLSU(LSUInterface, Elaboratable):
         m_data_w    = Signal(32)
         m_byte_sel  = Signal(4)
 
+        # --------------------------------------------------
+        # Check is the cache has to be used
         bits_range = log2_int(self.end_addr - self.start_addr, need_pow2=False)
         m.d.comb += x_use_cache.eq((self.x_addr[bits_range:] == (self.start_addr >> bits_range)))
 
@@ -196,7 +197,7 @@ class CachedLSU(LSUInterface, Elaboratable):
         m.d.comb += [
             # input
             wbuffer.w_data.eq(wbuffer_din),
-            wbuffer.w_en.eq(self.x_store & ~self.m_stall & self.x_enable),  # x_use_cache &
+            wbuffer.w_en.eq(self.x_store & self.x_enable),  # All writes uses the buffer
             wbuffer_din.addr.eq(self.x_addr),
             wbuffer_din.data.eq(self.x_data_w),
             wbuffer_din.sel.eq(self.x_byte_sel),
@@ -219,7 +220,7 @@ class CachedLSU(LSUInterface, Elaboratable):
                     m.next = 'BUSY'
             with m.State('BUSY'):
                 with m.If(wbuffer_port.ack | wbuffer_port.err):
-                    m.d.comb += wbuffer.r_en.eq(1)
+                    m.d.comb += wbuffer.r_en.eq(1)  # pop entry
                     m.d.sync += wbuffer_port.stb.eq(0)
 
                     with m.If(wbuffer.level == 1):  # Buffer is empty (next clock, ofc)
@@ -248,10 +249,11 @@ class CachedLSU(LSUInterface, Elaboratable):
         # connect IO: cache
         m.d.comb += [
             dcache.s1_address.eq(self.x_addr),
-            dcache.s1_flush.eq(0),              # TODO: connect
+            dcache.s1_flush.eq(0),                          # TODO: connect to debug module, eventually
             dcache.s2_address.eq(self.m_addr),
-            dcache.s2_valid.eq(m_use_cache & self.m_load),    # address in range, and load. Ignore stores
-            dcache.s2_stall.eq(0),
+            dcache.s2_valid.eq(m_use_cache & self.m_load),  # address in range, and load. Ignore stores
+            dcache.s2_stall.eq(0),                          # last stage. No need for this signals
+            dcache.s2_kill.eq(0),                           # last stage. No need for this signals
             dcache.s2_wdata.eq(m_data_w),
             dcache.s2_sel.eq(m_byte_sel),
             dcache.s2_we.eq(self.m_store)
@@ -266,7 +268,7 @@ class CachedLSU(LSUInterface, Elaboratable):
             cache_port.cyc.eq(dcache.bus_valid),
             cache_port.stb.eq(dcache.bus_valid),
             cache_port.cti.eq(Mux(dcache.bus_last, CycleType.END_OF_BURST, CycleType.INCR_BURST)),
-            cache_port.bte.eq(log2_int(self.nwords) - 1),
+            cache_port.bte.eq(log2_int(self.nwords) - 1),  # (2^(N+1))-beat wrap busrt. View page 70 of WB spec
             dcache.bus_data.eq(cache_port.dat_r),
             dcache.bus_ack.eq(cache_port.ack),
             dcache.bus_err.eq(cache_port.err)
@@ -275,15 +277,14 @@ class CachedLSU(LSUInterface, Elaboratable):
         # --------------------------------------------------
         # extra logic
         with m.If(self.x_fence_i | self.x_fence):
-            m.d.comb += self.x_busy.eq(wbuffer.r_rdy)
+            m.d.comb += self.x_busy.eq(wbuffer.r_rdy)  # wait for the buffer to be emptied
         with m.Else():
-            # No usar x_use_cache: siempre se accede si es escritura
-            m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)
+            m.d.comb += self.x_busy.eq(self.x_store & ~wbuffer.w_rdy)  # buffer is
 
         with m.If(m_use_cache & self.m_load):
             m.d.comb += [
                 self.m_busy.eq(dcache.s2_miss),
-                self.m_load_data.eq(dcache.s2_rdata)
+                self.m_load_data.eq(dcache.s2_rdata)  # This shit doesnt work: wtf happen if the read is outside the cached region???
             ]
 
         # --------------------------------------------------

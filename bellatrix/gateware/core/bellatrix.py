@@ -12,12 +12,10 @@ from bellatrix.gateware.core.adder import AdderUnit
 from bellatrix.gateware.core.logic import LogicUnit
 from bellatrix.gateware.core.compare import CompareUnit
 from bellatrix.gateware.core.shifter import ShifterUnit
-from bellatrix.gateware.core.fetch import BasicFetchUnit
-from bellatrix.gateware.core.fetch import CachedFetchUnit
+from bellatrix.gateware.core.frontend import Frontend
 from bellatrix.gateware.core.lsu import BasicLSU
 from bellatrix.gateware.core.lsu import DataFormat
 from bellatrix.gateware.core.lsu import CachedLSU
-from bellatrix.gateware.core.layout import _af_layout
 from bellatrix.gateware.core.layout import _fd_layout
 from bellatrix.gateware.core.layout import _dx_layout
 from bellatrix.gateware.core.layout import _xm_layout
@@ -26,7 +24,6 @@ from bellatrix.gateware.core.exception import ExceptionUnit
 from bellatrix.gateware.core.decoder import DecoderUnit
 from bellatrix.gateware.core.multiplier import Multiplier
 from bellatrix.gateware.core.divider import Divider
-from bellatrix.gateware.core.predictor import BranchPredictor
 from bellatrix.gateware.debug.trigger import TriggerModule
 from typing import List
 
@@ -101,6 +98,11 @@ class Bellatrix(Elaboratable):
                                   nways=self.dcache_nways,
                                   start_addr=self.dcache_start,
                                   end_addr=self.dcache_end)
+        self.frontend_kwargs = dict(reset_address=self.reset_address,
+                                    predictor_enable=self.predictor_enable,
+                                    predictor_size=self.predictor_size,
+                                    icache_enable=self.icache_enable,
+                                    icache_kwargs=self.icache_kwargs)
         # ----------------------------------------------------------------------
         i_features = ['err']
         if self.icache_enable:
@@ -130,21 +132,10 @@ class Bellatrix(Elaboratable):
         cpu = Module()
         # ----------------------------------------------------------------------
         # create the pipeline stages
-        a = cpu.submodules.a = Stage('A', None,       _af_layout)
-        f = cpu.submodules.f = Stage('F', _af_layout, _fd_layout)
         d = cpu.submodules.d = Stage('D', _fd_layout, _dx_layout)
         x = cpu.submodules.x = Stage('X', _dx_layout, _xm_layout)
         m = cpu.submodules.m = Stage('M', _xm_layout, _mw_layout)
         w = cpu.submodules.w = Stage('W', _mw_layout, None)
-        # ----------------------------------------------------------------------
-        # connect the stages
-        cpu.d.comb += [
-            a.endpoint_b.connect(f.endpoint_a),
-            f.endpoint_b.connect(d.endpoint_a),
-            d.endpoint_b.connect(x.endpoint_a),
-            x.endpoint_b.connect(m.endpoint_a),
-            m.endpoint_b.connect(w.endpoint_a)
-        ]
         # ----------------------------------------------------------------------
         # units
         adder     = cpu.submodules.adder     = AdderUnit()
@@ -155,10 +146,7 @@ class Bellatrix(Elaboratable):
         csr       = cpu.submodules.csr       = CSRFile()
         exception = cpu.submodules.exception = ExceptionUnit(csr, **self.exception_unit_kw)
         data_sel  = cpu.submodules.data_sel  = DataFormat()
-        if self.icache_enable:
-            fetch = cpu.submodules.fetch = CachedFetchUnit(**self.icache_kwargs)
-        else:
-            fetch = cpu.submodules.fetch = BasicFetchUnit()
+        frontend  = cpu.submodules.frontend  = Frontend(**self.frontend_kwargs)
         if self.dcache_enable:
             lsu = cpu.submodules.lsu = CachedLSU(**self.dcache_kwargs)
         else:
@@ -166,8 +154,6 @@ class Bellatrix(Elaboratable):
         if self.enable_rv32m:
             multiplier = cpu.submodules.multiplier = Multiplier()
             divider    = cpu.submodules.divider    = Divider()
-        if self.predictor_enable:
-            predictor = cpu.submodules.predictor = BranchPredictor(self.predictor_size)
         if self.trigger_enable:
             trigger = cpu.submodules.trigger = TriggerModule(privmode=exception.m_privmode,
                                                              ntriggers=self.trigger_ntriggers,
@@ -194,74 +180,40 @@ class Bellatrix(Elaboratable):
         m_take_jb = Signal()
         m_kill_jb = Signal()
         # ----------------------------------------------------------------------
-        # Address Stage
-        a_pc = Signal(32)
-        # reset value
-        a.endpoint_b.pc.reset = self.reset_address
-
-        if self.predictor_enable:
-            bad_predict_jump  = Signal()
-            bad_predict_nojump = Signal()
-
-            cpu.d.comb += [
-                bad_predict_jump.eq(m.endpoint_a.prediction & ~m_take_jb),
-                bad_predict_nojump.eq(~m.endpoint_a.prediction & m_take_jb)
-            ]
-
-        # select the next pc
-        with cpu.If(exception.m_exception):
-            cpu.d.comb += a_pc.eq(exception.mtvec.read)  # exception
-        with cpu.Elif(m.endpoint_a.mret):
-            cpu.d.comb += a_pc.eq(exception.mepc.read)  # mret
-        # ****************************************
-        if self.predictor_enable:
-            with cpu.Elif(bad_predict_jump):
-                cpu.d.comb += a_pc.eq(m.endpoint_a.pc + 4)  # branch not taken
-            with cpu.Elif(bad_predict_nojump):
-                cpu.d.comb += a_pc.eq(m.endpoint_a.jb_target)  # branck taken
-        else:
-            with cpu.Elif(m_take_jb):
-                cpu.d.comb += a_pc.eq(m.endpoint_a.jb_target)  # jmp/branch
-        # ****************************************
-        with cpu.Elif(x.endpoint_a.fence_i):
-            cpu.d.comb += a_pc.eq(x.endpoint_a.pc + 4)  # fence_i.
-        # ****************************************
-        # m > x > f regarding the new pc.
-        if self.predictor_enable:
-            with cpu.Elif(predictor.f_prediction):
-                cpu.d.comb += a_pc.eq(predictor.f_prediction_pc)  # prediction
-        # ****************************************
-        with cpu.Else():
-            cpu.d.comb += a_pc.eq(f.endpoint_a.pc + 4)
-
-        if self.predictor_enable:
-            a.add_kill_source(predictor.f_prediction & ~f.stall)
-
-        a.add_kill_source(m_kill_jb)
-        a.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
-        a.add_kill_source(exception.m_exception)
-        a.add_kill_source(m.endpoint_a.mret)
-        # ----------------------------------------------------------------------
-        # Fetch Stage
-        cpu.d.comb += fetch.iport.connect(self.iport)
+        # connect the stages
         cpu.d.comb += [
-            fetch.f_pc.eq(f.endpoint_a.pc),
-            fetch.f_kill.eq(f.kill),
-            fetch.d_stall.eq(d.stall),
-            fetch.f_prediction.eq(0)
+            frontend.endpoint.connect(d.endpoint_a),
+            d.endpoint_b.connect(x.endpoint_a),
+            x.endpoint_b.connect(m.endpoint_a),
+            m.endpoint_b.connect(w.endpoint_a)
+        ]
+        # ----------------------------------------------------------------------
+        # Frontend
+        cpu.d.comb += frontend.iport.connect(self.iport)
+        cpu.d.comb += [
+            frontend.mtvec.eq(exception.mtvec.read),
+            frontend.mepc.eq(exception.mepc.read),
+            frontend.jb_pc.eq(m.endpoint_a.jb_target),
+            frontend.fence_pc.eq(x.endpoint_a.pc + 4),
+            frontend.exception.eq(exception.m_exception),
+            frontend.mret.eq(m.endpoint_a.mret & m.valid),
+            frontend.take_jb.eq(m_take_jb & m.valid),
+            frontend.fence_i.eq(x.endpoint_a.fence_i & x.valid),
+            frontend.kill.eq(d.kill),
         ]
         if self.predictor_enable:
-            cpu.d.comb += fetch.f_prediction.eq(predictor.f_prediction & f.valid)
-
+            cpu.d.comb += [
+                frontend.p_bad_predict_jump.eq(m.endpoint_a.prediction & ~m_take_jb & m.valid),
+                frontend.p_bad_predict_nojump.eq(~m.endpoint_a.prediction & m_take_jb & m.valid),
+                frontend.p_no_jump_next_pc.eq(m.endpoint_a.pc + 4),
+                frontend.p_prediction_pc.eq(m.endpoint_a.pc),
+                frontend.p_prediction_target.eq(m.endpoint_a.jb_target),
+                frontend.p_prediction_state.eq(m.endpoint_a.prediction_state),
+                frontend.p_predictor_update.eq(m.endpoint_a.branch &m.valid),
+            ]
         if self.icache_enable:
-            flush_icache = x.endpoint_a.fence_i
-            cpu.d.comb += fetch.flush.eq(flush_icache)
+            cpu.d.comb += frontend.p_flush.eq(0)
 
-        f.add_stall_source(fetch.f_busy)
-        f.add_kill_source(m_kill_jb)
-        f.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
-        f.add_kill_source(exception.m_exception)
-        f.add_kill_source(m.endpoint_a.mret)
         # ----------------------------------------------------------------------
         # Decode Stage
         cpu.d.comb += [
@@ -276,14 +228,14 @@ class Bellatrix(Elaboratable):
                 ]
             with cpu.Default():
                 cpu.d.comb += [
-                    gprf_rp1.addr.eq(fetch.f_instruction[15:20]),
-                    gprf_rp2.addr.eq(fetch.f_instruction[20:25])
+                    gprf_rp1.addr.eq(frontend.fe_instruction[15:20]),
+                    gprf_rp2.addr.eq(frontend.fe_instruction[20:25])
                 ]
 
         cpu.d.comb += [
             gprf_wp.addr.eq(w.endpoint_a.gpr_rd),
             gprf_wp.data.eq(w_result),
-            gprf_wp.en.eq(w.endpoint_a.gpr_we)
+            gprf_wp.en.eq(w.endpoint_a.gpr_we & w.valid)
         ]
         rs1_data = Signal(32)
         rs2_data = Signal(32)
@@ -326,23 +278,23 @@ class Bellatrix(Elaboratable):
 
         # forwarding
         cpu.d.comb += [
-            fwd_x_rs1.eq((decoder.gpr_rs1 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we),
-            fwd_m_rs1.eq((decoder.gpr_rs1 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we),
-            fwd_w_rs1.eq((decoder.gpr_rs1 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we),
+            fwd_x_rs1.eq((decoder.gpr_rs1 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we & x.valid),
+            fwd_m_rs1.eq((decoder.gpr_rs1 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we & m.valid),
+            fwd_w_rs1.eq((decoder.gpr_rs1 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we & w.valid),
 
-            fwd_x_rs2.eq((decoder.gpr_rs2 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we),
-            fwd_m_rs2.eq((decoder.gpr_rs2 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we),
-            fwd_w_rs2.eq((decoder.gpr_rs2 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we),
+            fwd_x_rs2.eq((decoder.gpr_rs2 == x.endpoint_a.gpr_rd) & x.endpoint_a.gpr_rd_is_nzero & x.endpoint_a.gpr_we & x.valid),
+            fwd_m_rs2.eq((decoder.gpr_rs2 == m.endpoint_a.gpr_rd) & m.endpoint_a.gpr_rd_is_nzero & m.endpoint_a.gpr_we & m.valid),
+            fwd_w_rs2.eq((decoder.gpr_rs2 == w.endpoint_a.gpr_rd) & w.endpoint_a.gpr_rd_is_nzero & w.endpoint_a.gpr_we & w.valid),
         ]
 
         bubble_x = (x.endpoint_a.needed_in_m | x.endpoint_a.needed_in_w)
         bubble_m = m.endpoint_a.needed_in_w
         d.add_stall_source(((fwd_x_rs1 & decoder.gpr_rs1_use) | (fwd_x_rs2 & decoder.gpr_rs2_use)) & bubble_x)
         d.add_stall_source(((fwd_m_rs1 & decoder.gpr_rs1_use) | (fwd_m_rs2 & decoder.gpr_rs2_use)) & bubble_m)
-        d.add_kill_source(m_kill_jb)
-        d.add_kill_source(x.endpoint_a.fence_i & ~x.stall)
+        d.add_kill_source(m_kill_jb & m.valid)
+        d.add_kill_source(x.endpoint_a.fence_i & ~x.stall & x.valid)
         d.add_kill_source(exception.m_exception)
-        d.add_kill_source(m.endpoint_a.mret)
+        d.add_kill_source(m.endpoint_a.mret & m.valid)
         # ----------------------------------------------------------------------
         # Execute Stage
         x_jb_target = Signal(32)
@@ -378,7 +330,8 @@ class Bellatrix(Elaboratable):
                 cpu.d.comb += x_result.eq(multiplier.result)
 
         # load/store unit
-        x_ls_addr = Signal(32)
+        x_ls_addr  = Signal(32)
+        lsu_enable = ~data_sel.x_misaligned & ~x.kill & ~x.stall & x.valid
         cpu.d.comb += x_ls_addr.eq(x.endpoint_a.ls_base_addr + x.endpoint_a.immediate)
 
         cpu.d.comb += [
@@ -392,31 +345,32 @@ class Bellatrix(Elaboratable):
             lsu.x_store.eq(x.endpoint_a.store),
             lsu.x_load.eq(x.endpoint_a.load),
             lsu.x_byte_sel.eq(data_sel.x_byte_sel),
-            lsu.x_enable.eq(~data_sel.x_misaligned & ~x.kill)
+            lsu.x_enable.eq(lsu_enable)
         ]
         if self.trigger_enable:
-            cpu.d.comb += lsu.x_enable.eq(~trigger.trap & ~data_sel.x_misaligned & ~x.kill)
+            cpu.d.comb += lsu.x_enable.eq(~trigger.trap & lsu_enable)
 
         # ebreak logic
-        x_ebreak = x.endpoint_a.ebreak
+        x_ebreak = x.endpoint_a.ebreak & x.valid
         if self.trigger_enable:
             x_ebreak = x_ebreak | trigger.trap
 
         # stall/kill sources
         if self.dcache_enable:
             cpu.d.comb += [
-                lsu.x_fence.eq(x.endpoint_a.fence),
-                lsu.x_fence_i.eq(x.endpoint_a.fence_i)  # x.valid
+                lsu.x_fence.eq(x.endpoint_a.fence & x.valid),
+                lsu.x_fence_i.eq(x.endpoint_a.fence_i & x.valid)
             ]
+            # For Fences:
             # the first stall is for the first cycle of the new store
             # the second stall is for the data stored in the write buffer: we have to wait
-            x.add_stall_source((x.endpoint_a.fence_i | x.endpoint_a.fence) & m.endpoint_a.store)  # x.xalid/m.valid
+            x.add_stall_source((x.endpoint_a.fence_i | x.endpoint_a.fence) & x.valid & m.endpoint_a.store & m.valid)
             x.add_stall_source(lsu.x_busy)
         if self.enable_rv32m:
-            x.add_stall_source(x.endpoint_a.multiplier & ~multiplier.ready)
-        x.add_kill_source(m_kill_jb)
+            x.add_stall_source(x.endpoint_a.multiplier & ~multiplier.ready & x.valid)
+        x.add_kill_source(m_kill_jb & m.valid)
         x.add_kill_source(exception.m_exception)
-        x.add_kill_source(m.endpoint_a.mret)
+        x.add_kill_source(m.endpoint_a.mret & m.valid)
         # ----------------------------------------------------------------------
         # Memory/CSR Stage
         csr_wdata = Signal(32)
@@ -455,13 +409,12 @@ class Bellatrix(Elaboratable):
             data_sel.m_funct3.eq(m.endpoint_a.funct3),
             data_sel.m_offset.eq(m.endpoint_a.ls_addr[:2])
         ]
-        cpu.d.comb += lsu.m_stall.eq(m.stall)
-
         if self.dcache_enable:
             cpu.d.comb += [
+                lsu.m_stall.eq(m.stall),
                 lsu.m_addr.eq(m.endpoint_a.ls_addr),
-                lsu.m_load.eq(m.endpoint_a.load),
-                lsu.m_store.eq(m.endpoint_a.store)
+                lsu.m_load.eq(m.endpoint_a.load & m.valid),
+                lsu.m_store.eq(m.endpoint_a.store & m.valid)
             ]
 
         # csr
@@ -483,7 +436,7 @@ class Bellatrix(Elaboratable):
         cpu.d.comb += [
             csr.port.addr.eq(m.endpoint_a.csr_addr),
             csr.port.dat_w.eq(csr_wdata),
-            csr.port.valid.eq(m.endpoint_a.csr),
+            csr.port.valid.eq(m.endpoint_a.csr & m.valid),
             csr.port.we.eq(m.endpoint_a.csr_we)
         ]
         cpu.d.comb += csr.privmode.eq(exception.m_privmode)
@@ -513,9 +466,9 @@ class Bellatrix(Elaboratable):
             exception.m_valid.eq(m.valid)
         ]
         if self.enable_rv32m:
-            m.add_stall_source(divider.busy)
-        m.add_stall_source(lsu.m_busy)
-        m.add_stall_source(m.endpoint_a.csr & ~csr.port.done)
+            m.add_stall_source(divider.busy & m.valid)
+        m.add_stall_source(lsu.m_busy)  # TODO check
+        m.add_stall_source(m.endpoint_a.csr & ~csr.port.done & m.valid)
         m.add_kill_source(exception.m_exception)
         # ----------------------------------------------------------------------
         # Write Back Stage
@@ -537,27 +490,14 @@ class Bellatrix(Elaboratable):
                 multiplier.op.eq(x.endpoint_a.funct3),
                 multiplier.dat1.eq(x.endpoint_a.src_data1),
                 multiplier.dat2.eq(x.endpoint_a.src_data2),
-                multiplier.valid.eq(x.endpoint_a.multiplier)
+                multiplier.valid.eq(x.endpoint_a.multiplier & x.valid)
             ]
             cpu.d.comb += [
                 divider.op.eq(x.endpoint_a.funct3),
                 divider.dat1.eq(x.endpoint_a.src_data1),
                 divider.dat2.eq(x.endpoint_a.src_data2),
                 divider.stall.eq(x.stall),
-                divider.start.eq(x.endpoint_a.divider)
-            ]
-        # ----------------------------------------------------------------------
-        # Optional unit: branch predictor
-        if self.predictor_enable:
-            cpu.d.comb += [
-                predictor.f_pc.eq(fetch.f_pc),
-                predictor.f_stall.eq(f.stall),
-                predictor.f2_pc.eq(fetch.f2_pc),
-                predictor.m_prediction_state.eq(m.endpoint_a.prediction_state),
-                predictor.m_take_jmp_branch.eq(m_take_jb),
-                predictor.m_pc.eq(m.endpoint_a.pc),
-                predictor.m_target_pc.eq(m.endpoint_a.jb_target),
-                predictor.m_update.eq(m.endpoint_a.branch)
+                divider.start.eq(x.endpoint_a.divider & x.valid)
             ]
         # ----------------------------------------------------------------------
         # Optional unit: trigger
@@ -571,58 +511,8 @@ class Bellatrix(Elaboratable):
             ]
         # ----------------------------------------------------------------------
         # Pipeline registers
-        # A -> F
-        with cpu.If(~a.stall | f.kill):
-            cpu.d.sync += a.endpoint_b.pc.eq(a_pc)
-
-        # F -> D
-        f.endpoint_b.instruction.reset = 0x00000013
-        with cpu.If(f.kill):
-            cpu.d.sync += [
-                f.endpoint_b.instruction.eq(0x00000013),
-                f.endpoint_b.fetch_error.eq(0)
-            ]
-        with cpu.Elif(~f.stall):
-            cpu.d.sync += [
-                f.endpoint_b.pc.eq(fetch.f2_pc),
-                f.endpoint_b.instruction.eq(fetch.f_instruction),
-                f.endpoint_b.fetch_error.eq(fetch.f_bus_error)
-            ]
-            if self.predictor_enable:
-                cpu.d.sync += [
-                    f.endpoint_b.prediction.eq(predictor.f_prediction),
-                    f.endpoint_b.prediction_state.eq(predictor.f_prediction_state)
-                ]
-        with cpu.Elif(~d.stall):
-            cpu.d.sync += [
-                f.endpoint_b.instruction.eq(0x00000013),
-                f.endpoint_b.fetch_error.eq(0)
-            ]
-
         # D -> X
-        with cpu.If(d.kill):
-            cpu.d.sync += [
-                d.endpoint_b.gpr_we.eq(0),
-                d.endpoint_b.jump.eq(0),
-                d.endpoint_b.branch.eq(0),
-                d.endpoint_b.load.eq(0),
-                d.endpoint_b.store.eq(0),
-                d.endpoint_b.csr.eq(0),
-                d.endpoint_b.fence_i.eq(0),
-                d.endpoint_b.fence.eq(0),
-                d.endpoint_b.multiplier.eq(0),
-                d.endpoint_b.divider.eq(0),
-                d.endpoint_b.csr_we.eq(0),
-                d.endpoint_b.fetch_error.eq(0),
-                d.endpoint_b.ecall.eq(0),
-                d.endpoint_b.ebreak.eq(0),
-                d.endpoint_b.mret.eq(0),
-                d.endpoint_b.illegal.eq(0),
-                d.endpoint_b.prediction.eq(0),
-                d.endpoint_b.needed_in_m.eq(0),
-                d.endpoint_b.needed_in_w.eq(0)
-            ]
-        with cpu.Elif(~d.stall):
+        with cpu.If(~x.stall):
             cpu.d.sync += [
                 d.endpoint_b.pc.eq(d.endpoint_a.pc),
                 d.endpoint_b.instruction.eq(d.endpoint_a.instruction),
@@ -664,52 +554,9 @@ class Bellatrix(Elaboratable):
                 d.endpoint_b.prediction.eq(d.endpoint_a.prediction & decoder.branch),
                 d.endpoint_b.prediction_state.eq(d.endpoint_a.prediction_state)
             ]
-        with cpu.Elif(~x.stall):
-            cpu.d.sync += [
-                d.endpoint_b.gpr_we.eq(0),
-                d.endpoint_b.jump.eq(0),
-                d.endpoint_b.branch.eq(0),
-                d.endpoint_b.load.eq(0),
-                d.endpoint_b.store.eq(0),
-                d.endpoint_b.csr.eq(0),
-                d.endpoint_b.fence_i.eq(0),
-                d.endpoint_b.fence.eq(0),
-                d.endpoint_b.multiplier.eq(0),
-                d.endpoint_b.divider.eq(0),
-                d.endpoint_b.csr_we.eq(0),
-                d.endpoint_b.fetch_error.eq(0),
-                d.endpoint_b.ecall.eq(0),
-                d.endpoint_b.ebreak.eq(0),
-                d.endpoint_b.mret.eq(0),
-                d.endpoint_b.illegal.eq(0),
-                d.endpoint_b.prediction.eq(0),
-                d.endpoint_b.needed_in_m.eq(0),
-                d.endpoint_b.needed_in_w.eq(0)
-            ]
 
         # X -> M
-        with cpu.If(x.kill):
-            cpu.d.sync += [
-                x.endpoint_b.gpr_we.eq(0),
-                x.endpoint_b.needed_in_w.eq(0),
-                x.endpoint_b.compare.eq(0),
-                x.endpoint_b.shifter.eq(0),
-                x.endpoint_b.jump.eq(0),
-                x.endpoint_b.branch.eq(0),
-                x.endpoint_b.load.eq(0),
-                x.endpoint_b.store.eq(0),
-                x.endpoint_b.csr.eq(0),
-                x.endpoint_b.divider.eq(0),
-                x.endpoint_b.fetch_error.eq(0),
-                x.endpoint_b.ecall.eq(0),
-                x.endpoint_b.ebreak.eq(0),
-                x.endpoint_b.mret.eq(0),
-                x.endpoint_b.illegal.eq(0),
-                x.endpoint_b.ls_misalign.eq(0),
-                x.endpoint_b.prediction.eq(0),
-                x.endpoint_b.needed_in_w.eq(0)
-            ]
-        with cpu.Elif(~x.stall):
+        with cpu.If(~m.stall):
             cpu.d.sync += [
                 x.endpoint_b.pc.eq(x.endpoint_a.pc),
                 x.endpoint_b.instruction.eq(x.endpoint_a.instruction),
@@ -744,42 +591,18 @@ class Bellatrix(Elaboratable):
                 x.endpoint_b.prediction.eq(x.endpoint_a.prediction),
                 x.endpoint_b.prediction_state.eq(x.endpoint_a.prediction_state),
             ]
-        with cpu.Elif(~m.stall):
-            cpu.d.sync += [
-                x.endpoint_b.gpr_we.eq(0),
-                x.endpoint_b.needed_in_w.eq(0),
-                x.endpoint_b.compare.eq(0),
-                x.endpoint_b.shifter.eq(0),
-                x.endpoint_b.jump.eq(0),
-                x.endpoint_b.branch.eq(0),
-                x.endpoint_b.load.eq(0),
-                x.endpoint_b.store.eq(0),
-                x.endpoint_b.csr.eq(0),
-                x.endpoint_b.divider.eq(0),
-                x.endpoint_b.fetch_error.eq(0),
-                x.endpoint_b.ecall.eq(0),
-                x.endpoint_b.ebreak.eq(0),
-                x.endpoint_b.mret.eq(0),
-                x.endpoint_b.illegal.eq(0),
-                x.endpoint_b.ls_misalign.eq(0),
-                x.endpoint_b.prediction.eq(0),
-                x.endpoint_b.needed_in_w.eq(0)
-            ]
 
         # M -> W
-        with cpu.If(m.kill):
-            cpu.d.sync += m.endpoint_b.gpr_we.eq(0)
-        with cpu.Elif(~m.stall):
-            cpu.d.sync += [
-                m.endpoint_b.pc.eq(m.endpoint_a.pc),
-                m.endpoint_b.gpr_rd.eq(m.endpoint_a.gpr_rd),
-                m.endpoint_b.gpr_rd_is_nzero.eq(m.endpoint_a.gpr_rd_is_nzero),
-                m.endpoint_b.gpr_we.eq(m.endpoint_a.gpr_we),
-                m.endpoint_b.result.eq(m_result),
-                m.endpoint_b.ld_result.eq(data_sel.m_load_data),
-                m.endpoint_b.csr_result.eq(csr.port.dat_r),
-                m.endpoint_b.load.eq(m.endpoint_a.load),
-                m.endpoint_b.csr.eq(m.endpoint_a.csr)
-            ]
+        cpu.d.sync += [
+            m.endpoint_b.pc.eq(m.endpoint_a.pc),
+            m.endpoint_b.gpr_rd.eq(m.endpoint_a.gpr_rd),
+            m.endpoint_b.gpr_rd_is_nzero.eq(m.endpoint_a.gpr_rd_is_nzero),
+            m.endpoint_b.gpr_we.eq(m.endpoint_a.gpr_we),
+            m.endpoint_b.result.eq(m_result),
+            m.endpoint_b.ld_result.eq(data_sel.m_load_data),
+            m.endpoint_b.csr_result.eq(csr.port.dat_r),
+            m.endpoint_b.load.eq(m.endpoint_a.load),
+            m.endpoint_b.csr.eq(m.endpoint_a.csr)
+        ]
 
         return cpu

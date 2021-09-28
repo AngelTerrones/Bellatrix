@@ -1,8 +1,4 @@
 # layout for pipeline stages
-_af_layout = [
-    ('pc', 32)
-]
-
 _fd_layout = [
     ('pc',              32),
     ('instruction',     32),
