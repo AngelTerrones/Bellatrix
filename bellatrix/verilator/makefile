@@ -16,8 +16,7 @@ VOBJ		:= obj_dir_$$(EXE)
 SUBMAKE		:= $$(MAKE) --no-print-directory --directory=$$(VOBJ) -f
 NO_WARN     := -Wno-fatal -Wno-DECLFILENAME -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-WIDTH -Wno-UNUSED
 VERILATE	:= verilator -O3 --trace -Wall $$(NO_WARN) --x-assign 1 -cc -y $$(RTLDIR) -y $$(TBDIR) \
-						 -CFLAGS "-std=c++11 -O3 -DDPI_DLLISPEC= -DDPI_DLLESPEC=" -Mdir $$(VOBJ) \
-						 --timescale-override "1ns/1ns"
+						 -CFLAGS "-std=c++11 -O3 -DDPI_DLLISPEC= -DDPI_DLLESPEC=" -Mdir $$(VOBJ) #-timescale-override "1ns/1ns"
 
 #--------------------------------------------------
 # C++ build
