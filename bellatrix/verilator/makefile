@@ -75,19 +75,19 @@ $$(VOBJ)/verilated_dpi.o: $$(VINCD)/verilated_dpi.cpp $$(VOBJ)/Vtop.mk
 # Bellatrix
 $$(VOBJ)/aelf.o: $$(VTBINC)/aelf.cpp $$(VOBJ)/Vtop.mk
 	@printf "%b" "$$(COM_COLOR)$$(COM_STRING)$$(OBJ_COLOR) $$(@F) $$(NO_COLOR)\n"
-	$$(CXX) $$(CFLAGS) -DEXE="\"$$(EXE)\"" -DBCONFIG="\"$$(BCONFIG)\"" $$(INCS) -c $$< -o $$@
+	$$(CXX) $$(CFLAGS) -DEXE=\"$$(EXE)\" -DBCONFIG=\"$$(BCONFIG)\" $$(INCS) -c $$< -o $$@
 
 $$(VOBJ)/coretb.o: $$(VTBINC)/coretb.cpp $$(VOBJ)/Vtop.mk
 	@printf "%b" "$$(COM_COLOR)$$(COM_STRING)$$(OBJ_COLOR) $$(@F) $$(NO_COLOR)\n"
-	$$(CXX) $$(CFLAGS) -DEXE="\"$$(EXE)\"" -DBCONFIG="\"$$(BCONFIG)\"" $$(INCS) -c $$< -o $$@
+	$$(CXX) $$(CFLAGS) -DEXE=\"$$(EXE)\" -DBCONFIG=\"$$(BCONFIG)\" $$(INCS) -c $$< -o $$@
 
 $$(VOBJ)/main.o: $$(VTBINC)/main.cpp $$(VOBJ)/Vtop.mk
 	@printf "%b" "$$(COM_COLOR)$$(COM_STRING)$$(OBJ_COLOR) $$(@F) $$(NO_COLOR)\n"
-	$$(CXX) $$(CFLAGS) -DEXE="\"$$(EXE)\"" -DBCONFIG="\"$$(BCONFIG)\"" $$(INCS) -c $$< -o $$@
+	$$(CXX) $$(CFLAGS) -DEXE=\"$$(EXE)\" -DBCONFIG=\"$$(BCONFIG)\" $$(INCS) -c $$< -o $$@
 
 $$(VOBJ)/ram.o: $$(VTBINC)/ram.cpp $$(VOBJ)/Vtop.mk
 	@printf "%b" "$$(COM_COLOR)$$(COM_STRING)$$(OBJ_COLOR) $$(@F) $$(NO_COLOR)\n"
-	$$(CXX) $$(CFLAGS) -DEXE="\"$$(EXE)\"" -DBCONFIG="\"$$(BCONFIG)\"" $$(INCS) -c $$< -o $$@
+	$$(CXX) $$(CFLAGS) -DEXE=\"$$(EXE)\" -DBCONFIG=\"$$(BCONFIG)\" $$(INCS) -c $$< -o $$@
 
 # Exe
 $$(EXE).exe: $$(VOBJS) $$(OBJS) $$(VOBJ)/Vtop__ALL.a
