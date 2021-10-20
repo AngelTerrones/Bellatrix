@@ -10,7 +10,7 @@ makefile_template = f'{current_path}/makefile'
 def generate_testbench(config: Dict, path: str) -> None:
     print(f'\033[0;32mTestbench top file\033[0;0m: {path}top.v')
     icache_enable = config['icache_enable']
-    dcache_enable = config['dcache_enable']
+    dcache_enable = False
 
     data = dict(
         icache='',

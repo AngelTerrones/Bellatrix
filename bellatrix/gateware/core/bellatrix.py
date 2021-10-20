@@ -15,7 +15,6 @@ from bellatrix.gateware.core.shifter import ShifterUnit
 from bellatrix.gateware.core.frontend import Frontend
 from bellatrix.gateware.core.lsu import BasicLSU
 from bellatrix.gateware.core.lsu import DataFormat
-from bellatrix.gateware.core.lsu import CachedLSU
 from bellatrix.gateware.core.layout import _fd_layout
 from bellatrix.gateware.core.layout import _dx_layout
 from bellatrix.gateware.core.layout import _xm_layout
@@ -46,13 +45,6 @@ class Bellatrix(Elaboratable):
                  icache_nways: int = 1,
                  icache_start: int = 0x8000_0000,
                  icache_end: int = 0xffff_ffff,
-                 # Data cache
-                 dcache_enable: bool = False,
-                 dcache_nlines: int = 128,
-                 dcache_nwords: int = 8,
-                 dcache_nways: int = 1,
-                 dcache_start: int = 0x8000_0000,
-                 dcache_end: int = 0xffff_ffff,
                  # trigger module
                  trigger_enable: bool = False,
                  trigger_ntriggers: int = 4,
@@ -75,12 +67,6 @@ class Bellatrix(Elaboratable):
         self.icache_nways      = icache_nways
         self.icache_start      = icache_start
         self.icache_end        = icache_end
-        self.dcache_enable     = dcache_enable
-        self.dcache_nlines     = dcache_nlines
-        self.dcache_nwords     = dcache_nwords
-        self.dcache_nways      = dcache_nways
-        self.dcache_start      = dcache_start
-        self.dcache_end        = dcache_end
         self.trigger_enable    = trigger_enable
         self.trigger_ntriggers = trigger_ntriggers
         # kwargs for units
@@ -93,11 +79,6 @@ class Bellatrix(Elaboratable):
                                   nways=self.icache_nways,
                                   start_addr=self.icache_start,
                                   end_addr=self.icache_end)
-        self.dcache_kwargs = dict(nlines=self.dcache_nlines,
-                                  nwords=self.dcache_nwords,
-                                  nways=self.dcache_nways,
-                                  start_addr=self.dcache_start,
-                                  end_addr=self.dcache_end)
         self.frontend_kwargs = dict(reset_address=self.reset_address,
                                     predictor_enable=self.predictor_enable,
                                     predictor_size=self.predictor_size,
@@ -108,8 +89,6 @@ class Bellatrix(Elaboratable):
         if self.icache_enable:
             i_features.extend(['cti', 'bte'])
         d_features = ['err']
-        if self.dcache_enable:
-            d_features.extend(['cti', 'bte'])
         # IO
         self.iport              = Interface(addr_width=32, data_width=32, granularity=32, features=i_features, name='iport')
         self.dport              = Interface(addr_width=32, data_width=32, granularity=8,  features=d_features, name='dport')
@@ -147,10 +126,7 @@ class Bellatrix(Elaboratable):
         exception = cpu.submodules.exception = ExceptionUnit(csr, **self.exception_unit_kw)
         data_sel  = cpu.submodules.data_sel  = DataFormat()
         frontend  = cpu.submodules.frontend  = Frontend(**self.frontend_kwargs)
-        if self.dcache_enable:
-            lsu = cpu.submodules.lsu = CachedLSU(**self.dcache_kwargs)
-        else:
-            lsu = cpu.submodules.lsu = BasicLSU()
+        lsu       = cpu.submodules.lsu = BasicLSU()
         if self.enable_rv32m:
             multiplier = cpu.submodules.multiplier = Multiplier()
             divider    = cpu.submodules.divider    = Divider()
@@ -356,16 +332,6 @@ class Bellatrix(Elaboratable):
             x_ebreak = x_ebreak | trigger.trap
 
         # stall/kill sources
-        if self.dcache_enable:
-            cpu.d.comb += [
-                lsu.x_fence.eq(x.endpoint_a.fence & x.valid),
-                lsu.x_fence_i.eq(x.endpoint_a.fence_i & x.valid)
-            ]
-            # For Fences:
-            # the first stall is for the first cycle of the new store
-            # the second stall is for the data stored in the write buffer: we have to wait
-            x.add_stall_source((x.endpoint_a.fence_i | x.endpoint_a.fence) & x.valid & m.endpoint_a.store & m.valid)
-            x.add_stall_source(lsu.x_busy)
         if self.enable_rv32m:
             x.add_stall_source(x.endpoint_a.multiplier & ~multiplier.ready & x.valid)
         x.add_kill_source(m_kill_jb & m.valid)
@@ -409,14 +375,6 @@ class Bellatrix(Elaboratable):
             data_sel.m_funct3.eq(m.endpoint_a.funct3),
             data_sel.m_offset.eq(m.endpoint_a.ls_addr[:2])
         ]
-        if self.dcache_enable:
-            cpu.d.comb += [
-                lsu.m_stall.eq(m.stall),
-                lsu.m_addr.eq(m.endpoint_a.ls_addr),
-                lsu.m_load.eq(m.endpoint_a.load & m.valid),
-                lsu.m_store.eq(m.endpoint_a.store & m.valid)
-            ]
-
         # csr
         csr_src0 = Signal(32)
         csr_src  = Signal(32)

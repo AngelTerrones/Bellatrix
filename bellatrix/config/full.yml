@@ -22,13 +22,5 @@
         nways: 1,
         start: 0x8000_0000,
         end: 0xffff_ffff
-    },
-    dcache: {
-        enable: True,
-        nlines: 128,
-        nwords: 8,
-        nways: 1,
-        start: 0x8000_0000,
-        end: 0xffff_ffff
     }
 }

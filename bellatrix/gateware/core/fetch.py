@@ -72,7 +72,7 @@ class CachedFetchUnit(Elaboratable):
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
         # TODO: Missing handling uncached regions...
-        icache = m.submodules.icache  = Cache(enable_write=False, **self.cache_kwargs)
+        icache = m.submodules.icache  = Cache(**self.cache_kwargs)
 
         # connect IO: cache
         m.d.comb += [

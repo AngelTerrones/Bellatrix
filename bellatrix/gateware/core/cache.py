@@ -17,10 +17,8 @@ class Cache(Elaboratable):
                  nwords: int,               # number of words x line x way
                  nways: int,                # number of ways
                  start_addr: int = 0,       # start of cacheable region
-                 end_addr: int = 2**32,     # end of cacheable region
-                 enable_write: bool = True  # enable writes to cache
+                 end_addr: int = 2**32      # end of cacheable region
                  ) -> None:
-        # enable write -> data cache
         if nlines == 0 or (nlines & (nlines - 1)):
             raise ValueError(f'nlines must be a power of 2: {nlines}')
         if nwords not in (4, 8, 16):
@@ -28,7 +26,6 @@ class Cache(Elaboratable):
         if nways not in (1, 2):
             raise ValueError(f'nways must be 1 or 2: {nways}')
 
-        self.enable_write = enable_write
         self.nlines       = nlines
         self.nwords       = nwords
         self.nways        = nways
@@ -50,30 +47,27 @@ class Cache(Elaboratable):
             ('byte', 2),
             ('addr', offset_bits + line_bits)
         ]
+        # Complete the 32-bits, or we get errors...
         if extra_bits != 0:
             self.pc_layout.append(('unused', extra_bits))
 
         # -------------------------------------------------------------------------
         # IO
-        self.s1_address  = Record(self.pc_layout)
-        self.s1_flush    = Signal()
-        self.s2_address  = Record(self.pc_layout)
-        self.s2_valid    = Signal()
-        self.s2_stall    = Signal()
-        self.s2_kill     = Signal()
-        self.s2_miss     = Signal()
-        self.s2_rdata    = Signal(32)
-        if enable_write:
-            self.s2_wdata = Signal(32)
-            self.s2_sel   = Signal(4)
-            self.s2_we    = Signal()
+        self.s1_address  = Record(self.pc_layout)  # (in) Stage 1 address
+        self.s1_flush    = Signal()                # (in) Flush cache
+        self.s2_address  = Record(self.pc_layout)  # (in) Stage 2 address
+        self.s2_valid    = Signal()                # (in) Stage 2 valid
+        self.s2_stall    = Signal()                # (in) Stage 2 stall
+        self.s2_kill     = Signal()                # (in) Stage 2 kill
+        self.s2_miss     = Signal()                # (out) Stage 2 cache miss
+        self.s2_rdata    = Signal(32)              # (out) Stage 2 read data
 
-        self.bus_addr  = Record(self.pc_layout)
-        self.bus_valid = Signal()
-        self.bus_last  = Signal()
-        self.bus_data  = Signal(32)
-        self.bus_ack   = Signal()
-        self.bus_err   = Signal()
+        self.bus_addr  = Record(self.pc_layout)  # (out) bus addr
+        self.bus_valid = Signal()                # (out) valid transaction
+        self.bus_last  = Signal()                # (out) last access
+        self.bus_data  = Signal(32)              # (in) read data from bus
+        self.bus_ack   = Signal()                # (in) ack
+        self.bus_err   = Signal()                # (in) bus error
 
     def elaborate(self, platform: Platform) -> Module:
         m = Module()
@@ -88,8 +82,6 @@ class Cache(Elaboratable):
             ('valid',   1),
             ('sel_lru', 1)
         ]
-        if self.enable_write:
-            way_layout.append(('sel_we', 1))
 
         ways     = Array(Record(way_layout, name='way_idx{}'.format(idx)) for idx in range(self.nways))
         fill_cnt = Signal.like(self.s1_address.offset)  # counter for refill
@@ -102,9 +94,6 @@ class Cache(Elaboratable):
             m.d.comb += way_hit.i[idx].eq(tag_eq & way.valid)
 
         m.d.comb += miss.eq(way_hit.n & self.s2_valid)
-        if self.enable_write:
-            # Asumiendo que hay un HIT, indicar que la vía que dió hit es en la cual se va a escribir
-            m.d.comb += ways[way_hit.o].sel_we.eq(self.s2_we)
 
         # set the LRU
         if self.nways == 1:
@@ -183,9 +172,9 @@ class Cache(Elaboratable):
             # Transparent = requires a EN(able) signal to read/write
             valid = Signal(self.nlines)  # Valid bits
 
-            tag_m    = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
-            tag_rp   = tag_m.read_port(transparent=False)
-            tag_wp   = tag_m.write_port()
+            tag_m  = Memory(width=len(way.tag), depth=self.nlines)  # tag memory
+            tag_rp = tag_m.read_port(transparent=False)
+            tag_wp = tag_m.write_port()
             m.submodules += tag_rp, tag_wp
 
             data_m  = Memory(width=32, depth=self.nlines * self.nwords)  # data memory
@@ -218,29 +207,10 @@ class Cache(Elaboratable):
 
                 way.data.eq(data_rp.data),
                 way.tag.eq(tag_rp.data),
-                way.valid.eq(valid.bit_select(self.s2_address.line, 1))
+                way.valid.eq(valid.bit_select(self.s2_address.line, 1)),
+                data_wp.addr.eq(wdata_ptr.addr),
+                data_wp.data.eq(self.bus_data),
+                data_wp.en.eq(Repl(way.sel_lru & self.bus_ack, 4)),
             ]
-            if self.enable_write:
-                aux_write_addr = Record(self.mem_ptr_layout)
-
-                with m.If(self.bus_valid):
-                    m.d.comb += [
-                        data_wp.addr.eq(wdata_ptr.addr),
-                        data_wp.data.eq(self.bus_data),
-                        data_wp.en.eq(Repl(way.sel_lru & self.bus_ack, 4)),
-                    ]
-                with m.Else():
-                    m.d.comb += [
-                        aux_write_addr.eq(self.s2_address),
-                        data_wp.addr.eq(aux_write_addr.addr),
-                        data_wp.data.eq(self.s2_wdata),
-                        data_wp.en.eq(Repl(way.sel_we & ~way_hit.n, 4) & self.s2_sel)
-                    ]
-            else:
-                m.d.comb += [
-                    data_wp.addr.eq(wdata_ptr.addr),
-                    data_wp.data.eq(self.bus_data),
-                    data_wp.en.eq(Repl(way.sel_lru & self.bus_ack, 4)),
-                ]
 
         return m

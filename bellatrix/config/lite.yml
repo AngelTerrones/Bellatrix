@@ -16,8 +16,5 @@
     },
     icache: {
         enable: False
-    },
-    dcache: {
-        enable: False
     }
 }
