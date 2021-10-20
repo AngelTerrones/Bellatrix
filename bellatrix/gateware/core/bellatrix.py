@@ -334,6 +334,10 @@ class Bellatrix(Elaboratable):
         # stall/kill sources
         if self.enable_rv32m:
             x.add_stall_source(x.endpoint_a.multiplier & ~multiplier.ready & x.valid)
+        if self.trigger_enable:
+            # wait for commits to the CSR if the instruction@X is a memory operation
+            # csr.port.done is 1 only after a CSR operation.
+            x.add_stall_source((x.endpoint_a.load | x.endpoint_a.store) & csr.port.we & csr.port.done & x.valid)
         x.add_kill_source(m_kill_jb & m.valid)
         x.add_kill_source(exception.m_exception)
         x.add_kill_source(m.endpoint_a.mret & m.valid)
