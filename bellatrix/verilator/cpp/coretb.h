@@ -19,6 +19,7 @@
 
 #include <mutex>
 #include "Vtop.h"
+#include "Vtop__Dpi.h"
 #include "testbench.h"
 
 class CORETB: public Testbench<Vtop> {
