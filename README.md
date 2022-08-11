@@ -40,7 +40,7 @@ See LICENSE file for full copyright and license information.
 
 ## Project Details
 
-- Core described in python, using the [nMigen][5] toolbox.
+- Core described in python, using the [amaranth][5] toolbox.
 - Simulation using [Verilator][6].
 
 ## Directory Layout
@@ -58,10 +58,10 @@ See LICENSE file for full copyright and license information.
 To generate the verilog file, you need to install:
 
 - [Yosys][10] v0.9 or newer.
-- [nMigen][4].
-- [nMigen-soc][12].
+- [amaranth][4].
+- [amaranth-soc][12].
 
-Beware that [nMigen-soc][12] requieres a older version of [nMigen][4], so force-install it.
+Beware that [amaranth-soc][12] requieres a older version of [amaranth][4], so force-install it.
 
 To build the simulator:
 - [Verilator][6].
@@ -211,11 +211,11 @@ To execute a single `.elf` file, first build the desired simulator, then:
 [2]: https://github.com/lambdaconcept/minerva
 [3]: https://riscv.org/specifications/privileged-isa/
 [4]: https://www.ohwr.org/attachments/179/wbspec_b4.pdf
-[5]: https://github.com/nmigen/nmigen/
+[5]: https://github.com/amaranth/amaranth/
 [6]: https://www.veripool.org/wiki/verilator
 [7]: http://github.com/angelterrones/riscv-compliance
 [8]: https://www.sifive.com/boards
 [9]: https://static.dev.sifive.com/dev-tools/riscv64-unknown-elf-gcc-8.3.0-2019.08.0-x86_64-linux-ubuntu14.tar.gz
 [10]: https://github.com/YosysHQ/yosys
 [11]: https://riscv.org/specifications/debug-specification/
-[12]: https://github.com/nmigen/nmigen-soc
+[12]: https://github.com/amaranth/amaranth-soc

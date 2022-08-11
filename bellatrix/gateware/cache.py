@@ -1,17 +1,17 @@
-from nmigen import Mux
-from nmigen import Cat
-from nmigen import Repl
-from nmigen import Const
-from nmigen import Array
-from nmigen import Module
-from nmigen import Record
-from nmigen import Signal
-from nmigen import Memory
-from nmigen import Elaboratable
-from nmigen.lib.coding import Encoder
-from nmigen.utils import log2_int
-from nmigen.build import Platform
-from nmigen.hdl.rec import DIR_FANIN
+from amaranth import Mux
+from amaranth import Cat
+from amaranth import Repl
+from amaranth import Const
+from amaranth import Array
+from amaranth import Module
+from amaranth import Record
+from amaranth import Signal
+from amaranth import Memory
+from amaranth import Elaboratable
+from amaranth.lib.coding import Encoder
+from amaranth.utils import log2_int
+from amaranth.build import Platform
+from amaranth.hdl.rec import DIR_FANIN
 
 
 class InternalSnoopPort(Record):

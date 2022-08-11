@@ -5,8 +5,8 @@ import sys
 import argparse
 import subprocess
 from subprocess import CalledProcessError
-from nmigen.back import verilog
-from nmigen.hdl.ir import Fragment
+from amaranth.back import verilog
+from amaranth.hdl.ir import Fragment
 from bellatrix.gateware.core import Bellatrix
 from bellatrix.config.config import logo
 from bellatrix.config.config import load_config

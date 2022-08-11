@@ -1,12 +1,12 @@
-from nmigen import Cat
-from nmigen import Mux
-from nmigen import Signal
-from nmigen import Module
-from nmigen import Memory
-from nmigen import Record
-from nmigen import Elaboratable
-from nmigen.utils import log2_int
-from nmigen.build import Platform
+from amaranth import Cat
+from amaranth import Mux
+from amaranth import Signal
+from amaranth import Module
+from amaranth import Memory
+from amaranth import Record
+from amaranth import Elaboratable
+from amaranth.utils import log2_int
+from amaranth.build import Platform
 
 
 class BranchPredictor(Elaboratable):

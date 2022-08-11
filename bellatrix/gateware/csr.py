@@ -1,9 +1,9 @@
-from nmigen import Const
-from nmigen import Module
-from nmigen import Record
-from nmigen import Signal
-from nmigen import Elaboratable
-from nmigen.build import Platform
+from amaranth import Const
+from amaranth import Module
+from amaranth import Record
+from amaranth import Signal
+from amaranth import Elaboratable
+from amaranth.build import Platform
 from bellatrix.gateware.isa import CSRAccess
 from bellatrix.gateware.isa import PrivMode
 from typing import List, Tuple, Dict
