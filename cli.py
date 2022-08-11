@@ -81,7 +81,7 @@ def run_compliance(args):
     os.environ['TARGET_FOLDER'] = os.path.abspath(f'build/{args.variant}')
     for isa in args.isa:
         try:
-            subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=bellatrix RISCV_DEVICE=rv32i RISCV_ISA={isa}',
+            subprocess.check_call(f'make -C {args.rvc} variant RISCV_TARGET=nht RISCV_DEVICE=rv32i RISCV_ISA={isa}',
                                   shell=True, stderr=subprocess.STDOUT)
         except CalledProcessError as error:
             print(f"Error: {error}", file=sys.stderr)
