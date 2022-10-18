@@ -1,11 +1,11 @@
-from nmigen import Module
-from nmigen import Record
-from nmigen import Array
-from nmigen import Elaboratable
-from nmigen.hdl.rec import DIR_FANOUT
-from nmigen.lib.coding import PriorityEncoder
-from nmigen.build import Platform
-from nmigen_soc.wishbone.bus import Interface
+from amaranth import Module
+from amaranth import Record
+from amaranth import Array
+from amaranth import Elaboratable
+from amaranth.hdl.rec import DIR_FANOUT
+from amaranth.lib.coding import PriorityEncoder
+from amaranth.build import Platform
+from amaranth_soc.wishbone.bus import Interface
 from typing import Dict
 
 

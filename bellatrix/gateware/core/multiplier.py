@@ -1,11 +1,11 @@
-from nmigen import Cat
-from nmigen import Repl
-from nmigen import Mux
-from nmigen import Module
-from nmigen import Signal
-from nmigen import Elaboratable
-from nmigen import signed
-from nmigen.build import Platform
+from amaranth import Cat
+from amaranth import Repl
+from amaranth import Mux
+from amaranth import Module
+from amaranth import Signal
+from amaranth import Elaboratable
+from amaranth import signed
+from amaranth.build import Platform
 from bellatrix.gateware.core.isa import Funct3
 
 

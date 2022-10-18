@@ -1,14 +1,14 @@
-from nmigen import Module
-from nmigen import Signal
-from nmigen import Elaboratable
-from nmigen.build import Platform
-from nmigen.hdl.rec import DIR_FANOUT
+from amaranth import Module
+from amaranth import Signal
+from amaranth import Elaboratable
+from amaranth.build import Platform
+from amaranth.hdl.rec import DIR_FANOUT
 from bellatrix.gateware.core.fetch import BasicFetchUnit
 from bellatrix.gateware.core.fetch import CachedFetchUnit
 from bellatrix.gateware.core.predictor import BranchPredictor
 from bellatrix.gateware.core.stage import _Endpoint
 from bellatrix.gateware.core.layout import _fd_layout
-from nmigen_soc.wishbone.bus import Interface
+from amaranth_soc.wishbone.bus import Interface
 
 
 class Frontend(Elaboratable):

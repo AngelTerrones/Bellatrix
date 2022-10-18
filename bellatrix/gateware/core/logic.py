@@ -1,7 +1,7 @@
-from nmigen import Signal
-from nmigen import Module
-from nmigen import Elaboratable
-from nmigen.build import Platform
+from amaranth import Signal
+from amaranth import Module
+from amaranth import Elaboratable
+from amaranth.build import Platform
 from bellatrix.gateware.core.isa import Funct3
 
 

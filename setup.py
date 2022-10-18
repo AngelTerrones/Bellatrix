@@ -10,7 +10,7 @@ setup(
     author_email='angelterrones@gmail.com',
     license='BSD',
     python_requires='>=3.6',
-    install_requires=["nmigen>=0.1rc1"],
+    install_requires=["amaranth>=0.1rc1"],
     packages=find_packages(),
     project_urls={
         "Source Code": "https://github.com/angelterrones/bellatrix",
